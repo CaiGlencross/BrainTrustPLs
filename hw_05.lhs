@@ -134,8 +134,8 @@ writeArray arr ((length arr) - 1) (readArray arr randomIndex)
 > swap arr ind1 ind2     = 
 >         let temp = readArray arr ind1
 >         in  readArray arr ind2 >>= \val -> 
->             writeArray arr ind1 val >>= \_ -> 
->             writeArray arr ind2 temp
+>             writeArray arr ind1 val >>= \_ ->
+>             temp >>= \num -> writeArray arr ind2 num
 
 
 > shuffle :: IOArray Int a -> IO ()
