@@ -43,7 +43,7 @@ You are *of course* allowed to import other libraries. It may even make your sol
 > import System.Random
 >
 
-%> import Test.QuickCheck
+> import Test.QuickCheck
 
 
 **Problem (1): shuffling**
@@ -140,8 +140,8 @@ writeArray arr ((length arr) - 1) (readArray arr randomIndex)
 
 
 
-> shuffle :: IOArray Int a -> IO ()
-> shuffle arr = getBounds arr >>= \bs ->
+> shuffle' :: IOArray Int a -> IO ()
+> shuffle' arr = getBounds arr >>= \bs ->
 >                fisherYates (snd bs)
 >                where  fisherYates 0 = pure ()
 >                       fisherYates n = do
@@ -152,7 +152,7 @@ Now use your array-based function `shuffle` to work on lists. Be sure
 to test your code on a wide variety of inputs!
 
 > fastShuffle :: [a] -> IO [a]
-> fastShuffle l = listToArray l >>= \a -> shuffle a >>
+> fastShuffle l = listToArray l >>= \a -> shuffle' a >>
 >                   getElems a 
 
 
@@ -283,8 +283,8 @@ potential property of your shuffle, e.g., that it's pseudorandom. You
 might need to write a type signature. Check out
 `Test.QuickCheck.Monadic`.
 
-%> prop_fastShuffle_correct :: [Int] -> Property
-%> prop_fastShuffle_correct s = undefined 
+> prop_fastShuffle_correct :: [Int] -> Property
+> prop_fastShuffle_correct s = undefined 
 
 > data ArithExp =
 >     Num Int
@@ -304,8 +304,8 @@ define an `Arbitrary` instance for `ArithExp`... keep in mind that we
 don't want to generate *giant* data structures, so you may need to keep track of sizes.
 
 
-%> instance Arbitrary ArithExp where
-%>   arbitrary = undefined
+> instance Arbitrary ArithExp where
+>   arbitrary = undefined
 
 Write a test to ensure that `Plus e e` behaves the same as `Times 2 e`
 for all expressions `e`.
