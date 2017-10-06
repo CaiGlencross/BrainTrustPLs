@@ -213,11 +213,10 @@ command-line arguments.
 > main = do
 >   args <- getArgs
 >   if length args > 1 then error "Usage error: too many args" else return () 
->   output <- if length args == 0 || head args == "-" then 
->               getLine >>= \str -> shuffleStr str
->             else
->               shuffleFile $ head args
->   return ()
+>   output <- if length args == 0 || head args == "-" 
+>             then getLine >>= \str -> shuffleStr str 
+>             else shuffleFile (head args)
+>   putStrLn output
 
 **Problem (2): monadic MapReduce**
 
