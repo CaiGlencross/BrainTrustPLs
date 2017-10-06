@@ -41,7 +41,7 @@ You are *of course* allowed to import other libraries. It may even make your sol
 > import System.Exit
 > import System.IO
 > import System.Random
->
+> import Data.List
 
 > import Test.QuickCheck
 
@@ -139,9 +139,12 @@ writeArray arr ((length arr) - 1) (readArray arr randomIndex)
 >   writeArray arr ind2 val1        -- arr[ind2] = val1
 
 
+DO WE HAVE TO CHANGE BACK THIS NAME??
 
-> shuffle' :: IOArray Int a -> IO ()
-> shuffle' arr = getBounds arr >>= \bs ->
+> shuffle :: IOArray Int a -> IO ()
+> shuffle arr = getBounds arr >>= 
+>                \bs -> if snd bs == -1 then return ()
+>                else
 >                fisherYates (snd bs)
 >                where  fisherYates 0 = pure ()
 >                       fisherYates n = do
@@ -152,7 +155,7 @@ Now use your array-based function `shuffle` to work on lists. Be sure
 to test your code on a wide variety of inputs!
 
 > fastShuffle :: [a] -> IO [a]
-> fastShuffle l = listToArray l >>= \a -> shuffle' a >>
+> fastShuffle l = listToArray l >>= \a -> Hw05.shuffle a >>
 >                   getElems a 
 
 
@@ -164,7 +167,25 @@ lines. You should ignore lines with no characters on them and your
 final output should not end in a newline.
 
 > shuffleFile :: FilePath -> IO String
-> shuffleFile f = undefined
+> shuffleFile f = do
+>   str <- readFile f
+>   shuffleStr str
+
+> shuffleStr str = do 
+>   let lines = filter (\x -> x /= "") (splitOnNl str)
+>   linesArray <- listToArray lines
+>   Hw05.shuffle linesArray
+>   l <- getElems linesArray
+>   if l == [] then return ""
+>   else return (foldl (\acc line -> acc ++ "\n" ++ line) (head l) (tail l))
+
+> splitOnNl :: [Char] -> [[Char]]
+> splitOnNl [] = []
+> splitOnNl str = 
+>   case elemIndex '\n' str of
+>        Just i -> let (line, (nline:rest)) = Data.List.splitAt i str
+>                  in  line : splitOnNl rest
+>        Nothing -> [str]
 
 Finally, this shuffling program is useful enough that we should make
 it a command. To do so, you'll need to write a `main` function, which
@@ -189,8 +210,14 @@ Look at the various `System` modules to find out how to parse
 command-line arguments.
 
 > main :: IO ()
-> main = undefined
-
+> main = do
+>   args <- getArgs
+>   if length args > 1 then error "Usage error: too many args" else return () 
+>   output <- if length args == 0 || head args == "-" then 
+>               getLine >>= \str -> shuffleStr str
+>             else
+>               shuffleFile $ head args
+>   return ()
 
 **Problem (2): monadic MapReduce**
 
