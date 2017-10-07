@@ -1,4 +1,4 @@
-Homework 5.0: Monads
+Homework 6.0: Monads
 Due 2017-10-08
 
 > {-# OPTIONS_GHC -Wall -fno-warn-unused-imports #-}
@@ -44,6 +44,7 @@ You are *of course* allowed to import other libraries. It may even make your sol
 > import Data.List
 
 > import Test.QuickCheck
+> import Test.QuickCheck.Monadic
 
 
 **Problem (1): shuffling**
@@ -209,14 +210,12 @@ standard input), shuffle them, and then print out the shuffled input.
 Look at the various `System` modules to find out how to parse
 command-line arguments.
 
-% DOES NOT SHUFFLE STRINGS FROM COMMAND LINE
-
 > main :: IO ()
 > main = do
 >   args <- getArgs
 >   if length args > 1 then error "Usage error: too many args" else return () 
 >   output <- if length args == 0 || head args == "-" 
->             then getLine >>= \str -> shuffleStr str 
+>             then getContents >>= \str -> shuffleStr str 
 >             else shuffleFile (head args)
 >   putStrLn output
 
@@ -327,9 +326,17 @@ might need to write a type signature. Check out
 `Test.QuickCheck.Monadic`.
 
 > prop_fastShuffle_correct :: [Int] -> Property
-> prop_fastShuffle_correct s = undefined
 
-prop_fastShuffle_correct s = fastShuffle s >>= \r -> length r == length s
+prop_fastShuffle_correct = undefined
+
+> prop_fastShuffle_correct s = monadicIO $ do
+>   shuffled <- run (fastShuffle s)
+>   let lengthEq = length shuffled == length s
+>   let subsetL = foldr (\x b -> (elem x shuffled) && b) True s
+>   let subsetR = foldr (\x b -> (elem x s) && b) True shuffled
+>   assert (lengthEq && subsetL && subsetR)
+
+prop_fastShuffle_correct s = fastShuffle s >>= \r -> return (length r == length s)
 
 > data ArithExp =
 >     Num Int
