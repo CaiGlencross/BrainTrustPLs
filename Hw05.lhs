@@ -317,7 +317,7 @@ given number greater than 0.
 > collatz n = if n `mod` 2 == 0 then collatz (n `quot` 2) else collatz (3*n+1)
 
 > prop_Collatz :: Integral a => a -> Bool 
-> prop_Collatz n = collatz n == 1
+> prop_Collatz n = if n <= 0 then True else collatz n == 1
 
 Write a QuickCheck property that expresses the correctness of your
 `fastShuffle` function. No need to go for *full* correctness of every
