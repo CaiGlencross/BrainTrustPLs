@@ -326,17 +326,12 @@ might need to write a type signature. Check out
 `Test.QuickCheck.Monadic`.
 
 > prop_fastShuffle_correct :: [Int] -> Property
-
-prop_fastShuffle_correct = undefined
-
 > prop_fastShuffle_correct s = monadicIO $ do
 >   shuffled <- run (fastShuffle s)
 >   let lengthEq = length shuffled == length s
 >   let subsetL = foldr (\x b -> (elem x shuffled) && b) True s
 >   let subsetR = foldr (\x b -> (elem x s) && b) True shuffled
 >   assert (lengthEq && subsetL && subsetR)
-
-prop_fastShuffle_correct s = fastShuffle s >>= \r -> return (length r == length s)
 
 > data ArithExp =
 >     Num Int
