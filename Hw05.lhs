@@ -209,6 +209,8 @@ standard input), shuffle them, and then print out the shuffled input.
 Look at the various `System` modules to find out how to parse
 command-line arguments.
 
+% DOES NOT SHUFFLE STRINGS FROM COMMAND LINE
+
 > main :: IO ()
 > main = do
 >   args <- getArgs
@@ -268,7 +270,7 @@ some monad `m`; `ReducerM` is similar.
 
 Adapt `mapReduce` above to define `mapReduceM`:
 
-> listifyVal :: (k,v)-> (k, [v])
+> listifyVal :: (k,v) -> (k, [v])
 > listifyVal (k,v) = (k, [v])
 
 > deMonadVals :: (Ord k, Monad m) => [(k, m [v])] -> [m (k,[v])] 
@@ -282,17 +284,6 @@ Adapt `mapReduce` above to define `mapReduceM`:
 >        let reducedMap = Map.mapWithKey r reducedList
 >        let monadicValList = Map.toList reducedMap
 >        sequenceA (deMonadVals monadicValList)
-
-
-
-
-reducedMap :: Map k (m [v])
-
-rightNow mapReduceM :: (Ord k, Monad m) => MapperM m a k v -> ReducerM m k v -> [a] -> m [(k, m[v])]
-
-
-
-
 
 To test, here's an adaptation of the `wordCount` example above.
 
@@ -316,14 +307,18 @@ to write some tests.
 Write a QuickCheck property to check that `reverse` is *involutive*,
 i.e., that reversing a reversed list yields the original list.
 
-> prop_rev_involutive l = undefined
+> prop_rev_involutive l = reverse (reverse l) == l
 
-Write a QuickCheck property to check that checks the [Collatz
+Write a QuickCheck property that checks the [Collatz
 conjecture](https://en.wikipedia.org/wiki/Collatz_conjecture) for a
 given number greater than 0.
 
-> prop_Collatz = undefined
+> collatz :: (Num t, Integral a) => a -> t
+> collatz 1 = 1
+> collatz n = if n `mod` 2 == 0 then collatz (n `quot` 2) else collatz (3*n+1)
 
+> prop_Collatz :: Integral a => a -> Bool 
+> prop_Collatz n = collatz n == 1
 
 Write a QuickCheck property that expresses the correctness of your
 `fastShuffle` function. No need to go for *full* correctness of every
@@ -332,7 +327,9 @@ might need to write a type signature. Check out
 `Test.QuickCheck.Monadic`.
 
 > prop_fastShuffle_correct :: [Int] -> Property
-> prop_fastShuffle_correct s = undefined 
+> prop_fastShuffle_correct s = undefined
+
+prop_fastShuffle_correct s = fastShuffle s >>= \r -> length r == length s
 
 > data ArithExp =
 >     Num Int
@@ -351,11 +348,19 @@ Write a generator that generates arbitrary `ArithExp`s. Use it to
 define an `Arbitrary` instance for `ArithExp`... keep in mind that we
 don't want to generate *giant* data structures, so you may need to keep track of sizes.
 
+ae :: Arbitrary a => Gen (ArithExp)
+
+> ae size = if size > 5 then Num <$> arbitrary
+>           else oneof 
+>           [Num <$> arbitrary, 
+>           Plus <$> (ae (size+1)) <*> (ae (size+1)),
+>           Times <$> (ae (size+1)) <*> (ae (size+1)),
+>           Neg <$> (ae (size+1))]
 
 > instance Arbitrary ArithExp where
->   arbitrary = undefined
+>   arbitrary = ae 0
 
 Write a test to ensure that `Plus e e` behaves the same as `Times 2 e`
 for all expressions `e`.
 
-> prop_double = undefined
+> prop_double = forAll arbitrary (\rand_ae -> eval (Plus rand_ae rand_ae) == eval (Times (Num 2) rand_ae))
