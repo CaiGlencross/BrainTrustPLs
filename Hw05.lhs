@@ -239,7 +239,7 @@ The actual MapReduce implementaiton has three real phases: mapping,
 shuffling, and reducing. Here's a simple implementation:
 
 > mapReduce :: Ord k => Mapper a k v -> Reducer k v -> [a] -> [(k,[v])]
-> mapReduce m r = reduce r . shuffleKeys . concatMap (map listifyVal . m)
+> mapReduce m r = reduce r . shuffleKeys . concatMap ((map listifyVal) . m)
 >   where listifyVal (k,v) = (k,[v])
 >         shuffleKeys = Map.fromListWith (++)
 >         reduce r = Map.toList . Map.mapWithKey r
@@ -268,8 +268,30 @@ some monad `m`; `ReducerM` is similar.
 
 Adapt `mapReduce` above to define `mapReduceM`:
 
+> listifyVal :: (k,v)-> (k, [v])
+> listifyVal (k,v) = (k, [v])
+
+> deMonadVals :: (Ord k, Monad m) => [(k, m [v])] -> [m (k,[v])] 
+> deMonadVals lst = map (\(k,mv) -> mv >>= (\v -> return (k,v))) lst
+
 > mapReduceM :: (Ord k, Monad m) => MapperM m a k v -> ReducerM m k v -> [a] -> m [(k,[v])]
-> mapReduceM m r input = undefined
+> mapReduceM m r input =     do                            
+>        listOfLists <- sequenceA (map m input)                          
+>        let listifiedPairs = map listifyVal (foldr (++) [] listOfLists)
+>        let reducedList = Map.fromListWith (++) listifiedPairs
+>        let reducedMap = Map.mapWithKey r reducedList
+>        let monadicValList = Map.toList reducedMap
+>        sequenceA (deMonadVals monadicValList)
+
+
+
+
+reducedMap :: Map k (m [v])
+
+rightNow mapReduceM :: (Ord k, Monad m) => MapperM m a k v -> ReducerM m k v -> [a] -> m [(k, m[v])]
+
+
+
 
 
 To test, here's an adaptation of the `wordCount` example above.
