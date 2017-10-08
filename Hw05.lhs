@@ -140,8 +140,6 @@ writeArray arr ((length arr) - 1) (readArray arr randomIndex)
 >   writeArray arr ind2 val1        -- arr[ind2] = val1
 
 
-DO WE HAVE TO CHANGE BACK THIS NAME??
-
 > shuffle :: IOArray Int a -> IO ()
 > shuffle arr = getBounds arr >>= 
 >                \bs -> if snd bs == -1 then return ()
