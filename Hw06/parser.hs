@@ -1,8 +1,11 @@
 import Text.Parsec.String
 import Text.Parsec.Char
-import Data.Char
+import Text.Parsec.Token
 import Text.Parsec.Combinator
 import Text.Parsec
+import Text.ParserCombinators.Parsec.Error
+
+import Data.Char 
 
 import Control.Monad
 -- import Control.Applicative
@@ -20,19 +23,61 @@ data Expr =
     | Lambda VarName Expr
     deriving (Show, Eq, Ord)
 
-lambda :: Parser Expr
+-- make a pretty printer of show to test output on input and make
+-- sure it's parsed to the same
+--
+-- how to ensure there are not free variables?
+-- Walk the tree checking that every var occurs as an arg?
 
--- expr :: Parser Expr
--- expr = var <|>
+testParser :: Parser a -> String -> a
+testParser p s = case parse p "" s of (Right v) -> v; (Left e) -> error (show e)
+
+isAlphaNum' a = isAlphaNum a || a == '\''
+
+-- parses alpha-numeric characters and apostrophes, ie '
+alphaNum' :: Parser String
+alphaNum' = do
+    result <- many1 $ satisfy isAlphaNum'
+    return result
+
+app = expr `chainl1` appOp
+appOp = do {char ' '; return (App)}
+
+expr :: Parser Expr
+expr = 
+    try lambda <|>
+    var
+
+lambda :: Parser Expr
+lambda = do
+    spaces    
+    string "lambda"
+    notFollowedBy alphaNum'
+    spaces
+    arg <- varName -- handle more than one arg
+    spaces
+    char '.'
+    spaces
+    body <- app 
+    return (Lambda arg body)
 
 var :: Parser Expr
-var = do
+var = do {
+    name <- varName;
+    return (Var name)} <|>
+    between (char '(') (char ')') app
+
+varName :: Parser VarName
+varName = do
+    spaces
     fc <- firstChar
     rest <- many nonFirstChar
-    return $ Var (fc:rest)
+    return (fc:rest)
   where
     firstChar = satisfy (\a -> isLetter a)
-    nonFirstChar = satisfy (\a -> isAlphaNum a || a == '\'')
+    nonFirstChar = satisfy isAlphaNum' 
 
 main :: IO ()
-main = undefined
+main = do
+    arg <- getLine
+    putStrLn arg

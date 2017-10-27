@@ -1,0 +1,13 @@
+x
+lambda x. x
+(lambda x. x)
+(lambda x. x) y
+(lambda x. x) y z
+(lambda x. x) (y z)
+(lambda x. x) y z (lambda q. q q)
+lambda s z. s z
+lambda s. (lambda z. (s z))
+
+let zero = lambda s z. z in
+let succ = lambda n. lambda s z. s (n s z) in
+succ (succ zero)
