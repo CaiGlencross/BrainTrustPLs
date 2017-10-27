@@ -34,7 +34,6 @@ testParser p s = case parse p "" s of (Right v) -> v; (Left e) -> error (show e)
 
 isAlphaNum' a = isAlphaNum a || a == '\''
 
--- parses alpha-numeric characters and apostrophes, ie '
 alphaNum' :: Parser String
 alphaNum' = do
     result <- many1 $ satisfy isAlphaNum'
@@ -53,13 +52,27 @@ lambda = do
     spaces    
     string "lambda"
     notFollowedBy alphaNum'
-    spaces
-    arg <- varName -- handle more than one arg
-    spaces
-    char '.'
-    spaces
-    body <- app 
-    return (Lambda arg body)
+    args
+    
+
+args :: Parser Expr
+args = try (do {
+    spaces;
+    arg <- varName;
+    spaces;
+    char '.';
+    spaces;
+    body <- app;
+    return (Lambda arg body)}) <|>
+    do {
+    spaces;
+    arg <- varName;
+    spaces;
+    nextArg <- args;
+    return (Lambda arg nextArg)
+    }
+
+
 
 var :: Parser Expr
 var = do {
