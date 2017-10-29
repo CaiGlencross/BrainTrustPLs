@@ -6,6 +6,7 @@ import Text.Parsec
 import Text.ParserCombinators.Parsec.Error
 
 import Data.Char 
+import Data.Map
 
 import Control.Monad
 -- import Control.Applicative
@@ -29,8 +30,8 @@ data Expr =
 -- how to ensure there are not free variables?
 -- Walk the tree checking that every var occurs as an arg?
 
-testParser :: Parser a -> String -> a
-testParser p s = case parse p "" s of (Right v) -> v; (Left e) -> error (show e)
+test :: Parser a -> String -> a
+test p s = case parse p "" s of (Right v) -> v; (Left e) -> error (show e)
 
 isAlphaNum' a = isAlphaNum a || a == '\''
 
@@ -39,8 +40,31 @@ alphaNum' = do
     result <- many1 $ satisfy isAlphaNum'
     return result
 
+-- use manyTil app (string "in")
+
+lets = do
+    spaces
+    string "let"
+    notFollowedBy alphaNum'
+    spaces
+    name <- varName 
+    spaces
+    char '='
+    spaces
+    value <- app
+    spaces
+    body <- app
+    return (App (Lambda name body) value)
+
 app = expr `chainl1` appOp
-appOp = do {char ' '; return (App)}
+
+-- need some way of ensuring that there is a valid expression
+-- after the space (and not end of string or "in")
+
+appOp = do
+    skipMany1 space
+    notFollowedBy (string "in")
+    return (App)
 
 expr :: Parser Expr
 expr = 
@@ -53,7 +77,6 @@ lambda = do
     string "lambda"
     notFollowedBy alphaNum'
     args
-    
 
 args :: Parser Expr
 args = try (do {
@@ -71,8 +94,6 @@ args = try (do {
     nextArg <- args;
     return (Lambda arg nextArg)
     }
-
-
 
 var :: Parser Expr
 var = do {
