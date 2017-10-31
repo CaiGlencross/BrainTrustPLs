@@ -7,6 +7,7 @@ import Text.ParserCombinators.Parsec.Error
 
 import Data.Char 
 import Data.Map
+import Data.Set
 
 import Control.Monad
 -- import Control.Applicative
@@ -26,12 +27,21 @@ data Expr =
 
 instance Show Expr where
     show (Var v) = v
-    show (App x y) = show(x) ++ " " ++ show(y)
+    show (App x y) = "(" ++ show(x) ++ " " ++ show(y) ++ ")"
     show (Lambda var e) = "lambda "++ var ++ ". " ++ show(e)
 
--- make a pretty printer of show to test output on input and make
--- sure it's parsed to the same
---
+-- bounded :: Set -> Expr -> Bool
+bounded vars (Var name) = Data.Set.member name vars
+bounded vars (App e1 e2) = (bounded vars e1) && (bounded vars e2)
+bounded vars (Lambda arg e) = 
+    let 
+        vars' = Data.Set.insert arg vars 
+    in
+        bounded vars' e
+
+-- need to know which ones were not bound?
+unbounded expr = not (bounded Data.Set.empty expr) 
+
 -- how to ensure there are not free variables?
 -- Walk the tree checking that every var occurs as an arg?
 
@@ -41,8 +51,6 @@ alphaNum' :: Parser String
 alphaNum' = do
     result <- many1 $ satisfy isAlphaNum'
     return result
-
--- use manyTil app (string "in")
 
 lambdaExpr = try lets <|> app
 
@@ -103,6 +111,9 @@ args = try (do {
     return (Lambda arg nextArg)
     }
 
+-- trailing whitespace bugs with
+-- test lambdaExpr "lambda x. lambda y. lambda z. (x (y z)) "
+
 var :: Parser Expr
 var = do {
     name <- varName;
@@ -124,12 +135,19 @@ test p s = case parse p "" s of (Right v) -> v; (Left e) -> error (show e)
 
 main :: IO ()
 main = do
-    arg <- getArgs
-    if length arg > 1 then error "Usage error: too many args"
+    args <- getArgs
+    let cflag = any (\a -> a=="-c" || a=="-cn") args 
+    let nflag = any (\a -> a=="-n" || a=="-cn") args
+    let fileArg = Prelude.filter (\a -> a=="-c" && a=="-n" && a=="-cn") args
+    
+    if length fileArg > 1 then error "Usage error: too many args"
     else do
-    input <- if head arg == "-" || length arg == 0 then getContents
-             else readFile (head arg)
+    input <- if head fileArg == "-" || length fileArg == 0 then getContents
+             else readFile (head fileArg)
     let output = case parse app "" input of 
-                   (Right v) -> show v
+                   (Right v) -> v
                    (Left e) -> error (show e)
-    putStrLn output
+    if cflag && (unbounded output) then 
+        error "Unbound variables"
+    else do
+        putStrLn (show output)
