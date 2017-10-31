@@ -22,7 +22,12 @@ data Expr =
       Var VarName
     | App Expr Expr
     | Lambda VarName Expr
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
+
+instance Show Expr where
+    show (Var v) = v
+    show (App x y) = show(x) ++ " " ++ show(y)
+    show (Lambda var e) = "lambda "++ var ++ ". " ++ show(e)
 
 -- make a pretty printer of show to test output on input and make
 -- sure it's parsed to the same
