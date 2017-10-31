@@ -50,21 +50,27 @@ lets = do
     spaces
     value <- app
     spaces
+    string "in"
+    spaces
     body <- app
     return (App (Lambda name body) value)
 
 app = expr `chainl1` appOp
 
--- need some way of ensuring that there is a valid expression
--- after the space (and not end of string or "in")
+-- need some way of ensuring there is not an end of
+-- file or input after the spaces
 
-appOp = do
-    skipMany1 space
-    notFollowedBy (string "in")
-    return (App)
+appOp = try (do {
+    skipMany1 space;
+    notFollowedBy (string "in");
+    notFollowedBy eof;
+    return (App);
+    })
 
 expr :: Parser Expr
-expr = 
+expr =
+    try lets <|>
+    try app <|>
     try lambda <|>
     var
 
