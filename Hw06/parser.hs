@@ -39,6 +39,8 @@ alphaNum' = do
 
 -- use manyTil app (string "in")
 
+lambdaExpr = try lets <|> app
+
 lets = do
     spaces
     string "let"
@@ -52,7 +54,7 @@ lets = do
     spaces
     string "in"
     spaces
-    body <- app
+    body <- lambdaExpr
     return (App (Lambda name body) value)
 
 app = expr `chainl1` appOp
@@ -69,8 +71,6 @@ appOp = try (do {
 
 expr :: Parser Expr
 expr =
-    try lets <|>
-    try app <|>
     try lambda <|>
     var
 
