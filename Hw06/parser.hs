@@ -52,6 +52,7 @@ alphaNum' = do
     result <- many1 $ satisfy isAlphaNum'
     return result
 
+-- the entry point parser for all lambda expressions
 lambdaExpr = try lets <|> app
 
 lets = do
@@ -70,15 +71,13 @@ lets = do
     body <- lambdaExpr
     return (App (Lambda name body) value)
 
-app = expr `chainl1` appOp
-
--- need some way of ensuring there is not an end of
--- file or input after the spaces
+app = expr `chainl1` appOp 
 
 appOp = try (do {
     skipMany1 space;
     notFollowedBy (string "in");
     notFollowedBy eof;
+    lookAhead (try (many1 anyChar));
     return (App);
     })
 
@@ -111,20 +110,21 @@ args = try (do {
     return (Lambda arg nextArg)
     }
 
--- trailing whitespace bugs with
--- test lambdaExpr "lambda x. lambda y. lambda z. (x (y z)) "
-
 var :: Parser Expr
 var = do {
     name <- varName;
     return (Var name)} <|>
     between (char '(') (char ')') app
 
+keywords = ["lambda", "let", "in"]
+
 varName :: Parser VarName
 varName = do
     spaces
     fc <- firstChar
     rest <- many nonFirstChar
+    if fc:rest `elem` keywords then error "Keyword used as variable name"
+    else do
     return (fc:rest)
   where
     firstChar = satisfy (\a -> isLetter a)
@@ -150,4 +150,5 @@ main = do
     if cflag && (unbounded output) then 
         error "Unbound variables"
     else do
+
         putStrLn (show output)
