@@ -53,7 +53,10 @@ alphaNum' = do
     return result
 
 -- the entry point parser for all lambda expressions
-lambdaExpr = try lets <|> app
+lambdaExpr = do 
+    results <- try lets <|> app
+    notFollowedBy (char ')')
+    return results
 
 lets = do
     spaces
@@ -116,7 +119,7 @@ var :: Parser Expr
 var = do {
     name <- varName;
     return (Var name)} <|>
-    between (char '(') (char ')') app <|>
+    between (char '(') (do {spaces; char ')'}) app <|>
     error "mismatched parens"
 
 keywords = ["lambda", "let", "in"]
