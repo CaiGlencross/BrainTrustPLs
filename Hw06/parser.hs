@@ -110,11 +110,14 @@ args = try (do {
     return (Lambda arg nextArg)
     }
 
+-- mismatched parens not detected
+
 var :: Parser Expr
 var = do {
     name <- varName;
     return (Var name)} <|>
-    between (char '(') (char ')') app
+    between (char '(') (char ')') app <|>
+    error "mismatched parens"
 
 keywords = ["lambda", "let", "in"]
 
