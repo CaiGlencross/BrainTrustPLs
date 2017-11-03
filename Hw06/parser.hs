@@ -25,6 +25,34 @@ data Expr =
     | Lambda VarName Expr
     deriving (Eq, Ord)
 
+
+interp :: Expr -> Expr 
+interp (Var var)        = Var var
+interp (Lambda var e)   = Lambda var (interp e)
+interp (App e1 e2)      = 
+    case interp e1 of
+        (Lambda var' e')   -> 
+            let
+                e2' = interp e2
+            in
+                subst e' var' e2'
+        otherwise          -> error "the fuck happening?"
+
+
+
+
+subst :: Expr -> VarName -> Expr -> Expr
+subst (Var orig) var sub     =      if orig == var then sub else (Var orig)
+subst (App e1 e2) var sub    = App (subst e1 var sub) (subst e2 var sub)
+subst (Lambda v e) var sub   = 
+    case v == var of
+        True -> (Lambda v e)
+        False -> (Lambda v (subst e var sub))
+
+
+
+
+
 instance Show Expr where
     show (Var v) = v
     show (App x y) = "(" ++ show(x) ++ " " ++ show(y) ++ ")"
@@ -139,6 +167,9 @@ varName = do
 test :: Parser a -> String -> a
 test p s = case parse p "" s of (Right v) -> v; (Left e) -> error (show e)
 
+testInterp :: Parser Expr -> String -> Expr
+testInterp p s = case parse p "" s of (Right v) -> (interp v); (Left e) -> error (show e)
+
 main :: IO ()
 main = do
     args <- getArgs
@@ -150,8 +181,8 @@ main = do
     else do
     input <- if head fileArg == "-" || length fileArg == 0 then getContents
              else readFile (head fileArg)
-    let output = case parse app "" input of 
-                   (Right v) -> v
+    let output = case parse lambdaExpr "" input of 
+                   (Right v) -> v 
                    (Left e) -> error (show e)
     if cflag && (unbounded output) then 
         error "Unbound variables"
