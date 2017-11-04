@@ -23,22 +23,39 @@ data Expr =
       Var VarName
     | App Expr Expr
     | Lambda VarName Expr
+    | Church Numb
     deriving (Eq, Ord)
+
+data Numb = 
+     Succ Numb
+   | Zero 
+   deriving (Ord, Eq, Show)
+
 
 
 interp :: Expr -> Expr 
 interp (Var var)        = Var var
-interp (Lambda var e)   = Lambda var (interp e)
+interp (Lambda var e)   = Lambda var (e)
 interp (App e1 e2)      = 
     case interp e1 of
-        (Lambda var' e')   -> 
-            let
-                e2' = interp e2
-            in
-                subst e' var' e2'
-        otherwise          -> error "the fuck happening?"
+        (Lambda var' e')   -> let e2' = interp e2 in subst e' var' e2'
+        (App a b)         -> error "Expected Lambda found Application"
+        (Var a)         -> error "Expected Lambda found Variable"
+interp c@(Church e)      = c
+
+-- toChurch :: Expr -> Integer
+-- toChurch (Lambda x e) = interp e' (Succ) x' where
+--                     (Lambda z inner)  = e
+--                     (Lambda x' e') = subst inner Zero z
 
 
+
+-- eval :: Expr -> Int
+-- eval (Lambda x e)      = error "the fuck is this eh ?"
+-- eval (Var v)           = error "this not a Church bro, this like a synagogue or some"
+-- eval (App e1 e2)       = error "broh- what i fuckin say about not passing Church ?"
+-- eval (Church Zero)     = 0
+-- eval (Church Succ (e)) = 1 + (eval e)
 
 
 subst :: Expr -> VarName -> Expr -> Expr
