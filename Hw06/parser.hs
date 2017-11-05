@@ -23,30 +23,37 @@ data Expr =
       Var VarName
     | App Expr Expr
     | Lambda VarName Expr
-    | Church Numb
+    | Succ 
+    | Num Integer
     deriving (Eq, Ord)
 
-data Numb = 
-     Succ Numb
-   | Zero 
-   deriving (Ord, Eq, Show)
+
 
 
 
 interp :: Expr -> Expr 
 interp (Var var)        = Var var
 interp (Lambda var e)   = Lambda var (e)
+interp (Succ )          = Succ 
+interp (Num a)          = Num a
 interp (App e1 e2)      = 
     case interp e1 of
-        (Lambda var' e')   -> let e2' = interp e2 in subst e' var' e2'
+        (Lambda var' e')  -> let e2' = interp e2 in subst e' var' e2'
         (App a b)         -> error "Expected Lambda found Application"
-        (Var a)         -> error "Expected Lambda found Variable"
-interp c@(Church e)      = c
+        (Var a)           -> error "Expected Lambda found Variable"
 
--- toChurch :: Expr -> Integer
--- toChurch (Lambda x e) = interp e' (Succ) x' where
---                     (Lambda z inner)  = e
---                     (Lambda x' e') = subst inner Zero z
+
+takeMeToChurch :: Expr -> Expr
+takeMeToChurch l@(Lambda x e) = interp (App (App l Succ) (Num 0))
+
+
+evalChurch :: Expr -> Either String Integer
+evalChurch (Lambda x e) = Left $ " of sorts "
+evalChurch (Num n) = Right $ n 
+evalChurch (App Succ e1) = (+1) <$> (evalChurch e1)
+evalChurch _             = Left $ "not a valid church numeral"
+
+
 
 
 
