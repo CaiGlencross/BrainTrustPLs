@@ -50,6 +50,7 @@ evalChurch (App Succ e1) = (+1) <$> (evalChurch e1)
 evalChurch e             = Left $ "not a valid church numeral " ++ show(e)
 
 fullChurch :: Expr -> Integer
+fullChurch (Lambda x (Var y)) | x == y = 1
 fullChurch e = 
     case evalChurch (takeMeToChurch e) of
         Right i -> i
@@ -63,7 +64,7 @@ subst (Lambda v e) var sub   =
         True -> (Lambda v e)
         False -> (Lambda v (subst e var sub))
 subst Succ _ _               = Succ
-subst e v s                  = error $"the fuck is going on? " ++ show(e) ++v ++show(s)
+subst e v s                  = error $"recieved wrong arguments" ++ show(e) ++v ++show(s)
 
 instance Show Expr where
     show (Var v) = v
