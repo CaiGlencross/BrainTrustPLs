@@ -28,13 +28,10 @@ data Expr =
     deriving (Eq, Ord)
 
 
-
-
-
 interp :: Expr -> Expr 
 interp (Var var)        = Var var
 interp (Lambda var e)   = Lambda var (e)
-interp (Succ )          = Succ 
+interp (Succ)           = Succ 
 interp (Num a)          = Num a
 interp (App e1 e2)      = 
     case interp e1 of
@@ -43,18 +40,25 @@ interp (App e1 e2)      =
         (Var a)           -> error "Expected Lambda found Variable"
 
 
+
+-- we need to apply these apps for nested statements as well because
+-- otherwise it only subs in succ and num zero to the outermost
 takeMeToChurch :: Expr -> Expr
 takeMeToChurch l@(Lambda x e) = interp (App (App l Succ) (Num 0))
 
 
 evalChurch :: Expr -> Either String Integer
-evalChurch (Lambda x e) = Left $ " of sorts "
+evalChurch (Lambda x e) = Left $ error " of sorts "
 evalChurch (Num n) = Right $ n 
 evalChurch (App Succ e1) = (+1) <$> (evalChurch e1)
-evalChurch _             = Left $ "not a valid church numeral"
+evalChurch e             = Left $ "not a valid church numeral " ++ show(e)
 
 
-
+fullChurch :: Expr -> Integer
+fullChurch e = 
+    case evalChurch (takeMeToChurch e) of
+        Right i -> i
+        Left e -> error e
 
 
 -- eval :: Expr -> Int
@@ -66,21 +70,22 @@ evalChurch _             = Left $ "not a valid church numeral"
 
 
 subst :: Expr -> VarName -> Expr -> Expr
-subst (Var orig) var sub     =      if orig == var then sub else (Var orig)
+subst (Var orig) var sub     = if orig == var then sub else (Var orig)
 subst (App e1 e2) var sub    = App (subst e1 var sub) (subst e2 var sub)
 subst (Lambda v e) var sub   = 
     case v == var of
         True -> (Lambda v e)
         False -> (Lambda v (subst e var sub))
-
-
-
+subst Succ _ _               = Succ
+subst e v s                  = error $"the fuck is going on? " ++ show(e) ++v ++show(s)
 
 
 instance Show Expr where
     show (Var v) = v
     show (App x y) = "(" ++ show(x) ++ " " ++ show(y) ++ ")"
-    show (Lambda var e) = "lambda "++ var ++ ". " ++ show(e)
+    show (Lambda var e) = "(lambda "++ var ++ ". " ++ show(e) ++ ")"
+    show (Succ)         = "Succ"
+    show (Num i)        = "Num "++show(i)
 
 -- bounded :: Set -> Expr -> Bool
 bounded vars (Var name) = Data.Set.member name vars
@@ -199,17 +204,19 @@ main = do
     args <- getArgs
     let cflag = any (\a -> a=="-c" || a=="-cn") args 
     let nflag = any (\a -> a=="-n" || a=="-cn") args
-    let fileArg = Prelude.filter (\a -> a=="-c" && a=="-n" && a=="-cn") args
+    let fileArg = Prelude.filter (\a -> a/="-c" && a/="-n" && a/="-cn") args
     
     if length fileArg > 1 then error "Usage error: too many args"
     else do
     input <- if head fileArg == "-" || length fileArg == 0 then getContents
              else readFile (head fileArg)
-    let output = case parse lambdaExpr "" input of 
+    let ast = case parse lambdaExpr "" input of 
                    (Right v) -> v 
                    (Left e) -> error (show e)
-    if cflag && (unbounded output) then 
+    let output = interp ast
+    if cflag && (unbounded ast) then 
         error "Unbound variables"
+    else if nflag then do
+        putStrLn (show (fullChurch output))
     else do
-
-        putStrLn (show output)
+        putStrLn (show (output))
