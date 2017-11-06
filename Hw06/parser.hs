@@ -27,10 +27,9 @@ data Expr =
     | Num Integer
     deriving (Eq, Ord)
 
-
 interp :: Expr -> Expr 
 interp (Var var)        = Var var
-interp (Lambda var e)   = Lambda var (e)
+interp (Lambda var e)   = Lambda var e
 interp (Succ)           = Succ 
 interp (Num a)          = Num a
 interp (App e1 e2)      = 
@@ -39,13 +38,10 @@ interp (App e1 e2)      =
         (App a b)         -> error "Expected Lambda found Application"
         (Var a)           -> error "Expected Lambda found Variable"
 
-
-
 -- we need to apply these apps for nested statements as well because
 -- otherwise it only subs in succ and num zero to the outermost
 takeMeToChurch :: Expr -> Expr
 takeMeToChurch l@(Lambda x e) = interp (App (App l Succ) (Num 0))
-
 
 evalChurch :: Expr -> Either String Integer
 evalChurch (Lambda x e) = Left $ error " of sorts "
@@ -53,21 +49,11 @@ evalChurch (Num n) = Right $ n
 evalChurch (App Succ e1) = (+1) <$> (evalChurch e1)
 evalChurch e             = Left $ "not a valid church numeral " ++ show(e)
 
-
 fullChurch :: Expr -> Integer
 fullChurch e = 
     case evalChurch (takeMeToChurch e) of
         Right i -> i
         Left e -> error e
-
-
--- eval :: Expr -> Int
--- eval (Lambda x e)      = error "the fuck is this eh ?"
--- eval (Var v)           = error "this not a Church bro, this like a synagogue or some"
--- eval (App e1 e2)       = error "broh- what i fuckin say about not passing Church ?"
--- eval (Church Zero)     = 0
--- eval (Church Succ (e)) = 1 + (eval e)
-
 
 subst :: Expr -> VarName -> Expr -> Expr
 subst (Var orig) var sub     = if orig == var then sub else (Var orig)
@@ -78,7 +64,6 @@ subst (Lambda v e) var sub   =
         False -> (Lambda v (subst e var sub))
 subst Succ _ _               = Succ
 subst e v s                  = error $"the fuck is going on? " ++ show(e) ++v ++show(s)
-
 
 instance Show Expr where
     show (Var v) = v
@@ -96,11 +81,7 @@ bounded vars (Lambda arg e) =
     in
         bounded vars' e
 
--- need to know which ones were not bound?
 unbounded expr = not (bounded Data.Set.empty expr) 
-
--- how to ensure there are not free variables?
--- Walk the tree checking that every var occurs as an arg?
 
 isAlphaNum' a = isAlphaNum a || a == '\''
 
@@ -109,7 +90,6 @@ alphaNum' = do
     result <- many1 $ satisfy isAlphaNum'
     return result
 
--- the entry point parser for all lambda expressions
 lambdaExpr = do 
     results <- try lets <|> app
     notFollowedBy (char ')')
