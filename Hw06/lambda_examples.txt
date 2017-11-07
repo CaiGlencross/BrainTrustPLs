@@ -12,3 +12,7 @@ lambda s. (lambda z. (s z))
 let zero = lambda s z. z in
 let succ = lambda n. lambda s z. s (n s z) in
 succ (succ zero)
+
+let zero = lambda s z. z in \nlet succ = lambda n. lambda s z. s (n s z) in \nsucc (succ (succ zero))
+
+let id = lambda x. x in lambda y. id

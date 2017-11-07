@@ -10,7 +10,6 @@ import Data.Map
 import Data.Set
 
 import Control.Monad
--- import Control.Applicative
 
 import System.Environment
 import System.Exit
@@ -25,18 +24,28 @@ data Expr =
     | Lambda VarName Expr
     | Succ 
     | Num Integer
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
+
+{-
+instance Show Expr where
+    show (Var v) = v
+    show (App x y) = "(" ++ show(x) ++ " " ++ show(y) ++ ")"
+    show (Lambda var e) = "(lambda "++ var ++ ". " ++ show(e) ++ ")"
+    show (Succ)         = "Succ"
+    show (Num i)        = "Num "++show(i)
+-}
 
 interp :: Expr -> Expr 
 interp (Var var)        = Var var
-interp (Lambda var e)   = Lambda var e
+interp (Lambda var e)   = Lambda var (interp e)
 interp (Succ)           = Succ 
 interp (Num a)          = Num a
+interp l@(App Succ e)   = l
 interp (App e1 e2)      = 
     case interp e1 of
         (Lambda var' e')  -> let e2' = interp e2 in interp (subst e' var' e2')
-        (App a b)         -> error "Expected Lambda found Application"
-        (Var a)           -> error "Expected Lambda found Variable"
+        (App a b)         -> let e2' = interp e2 in App (App a b) e2'
+        (Var a)           -> let e2' = interp e2 in App (Var a) e2'
 
 -- we need to apply these apps for nested statements as well because
 -- otherwise it only subs in succ and num zero to the outermost
@@ -66,14 +75,7 @@ subst (Lambda v e) var sub   =
 subst Succ _ _               = Succ
 subst e v s                  = error $"recieved wrong arguments" ++ show(e) ++v ++show(s)
 
-instance Show Expr where
-    show (Var v) = v
-    show (App x y) = "(" ++ show(x) ++ " " ++ show(y) ++ ")"
-    show (Lambda var e) = "(lambda "++ var ++ ". " ++ show(e) ++ ")"
-    show (Succ)         = "Succ"
-    show (Num i)        = "Num "++show(i)
-
--- bounded :: Set -> Expr -> Bool
+bounded :: Set VarName -> Expr -> Bool
 bounded vars (Var name) = Data.Set.member name vars
 bounded vars (App e1 e2) = (bounded vars e1) && (bounded vars e2)
 bounded vars (Lambda arg e) = 
@@ -151,8 +153,6 @@ args = try (do {
     return (Lambda arg nextArg)
     }
 
--- mismatched parens not detected
-
 var :: Parser Expr
 var = do {
     name <- varName;
@@ -183,6 +183,9 @@ testInterp :: String -> Expr
 testInterp s = case parse lambdaExpr "" s of 
     (Right v) -> (interp v); 
     (Left e) -> error (show e)
+
+testNumerals :: String -> Integer
+testNumerals s = fullChurch (testInterp s)
 
 main :: IO ()
 main = do
