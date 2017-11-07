@@ -34,7 +34,7 @@ interp (Succ)           = Succ
 interp (Num a)          = Num a
 interp (App e1 e2)      = 
     case interp e1 of
-        (Lambda var' e')  -> let e2' = interp e2 in subst e' var' e2'
+        (Lambda var' e')  -> let e2' = interp e2 in interp (subst e' var' e2')
         (App a b)         -> error "Expected Lambda found Application"
         (Var a)           -> error "Expected Lambda found Variable"
 
@@ -175,10 +175,14 @@ varName = do
     nonFirstChar = satisfy isAlphaNum' 
 
 test :: Parser a -> String -> a
-test p s = case parse p "" s of (Right v) -> v; (Left e) -> error (show e)
+test p s = case parse p "" s of 
+    (Right v) -> v
+    (Left e) -> error (show e)
 
-testInterp :: Parser Expr -> String -> Expr
-testInterp p s = case parse p "" s of (Right v) -> (interp v); (Left e) -> error (show e)
+testInterp :: String -> Expr
+testInterp s = case parse lambdaExpr "" s of 
+    (Right v) -> (interp v); 
+    (Left e) -> error (show e)
 
 main :: IO ()
 main = do
