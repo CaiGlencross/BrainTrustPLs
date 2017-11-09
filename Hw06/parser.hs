@@ -16,6 +16,8 @@ import System.Exit
 import System.IO
 import System.Random
 
+{-# LANGUAGE BangPatterns #-}
+
 type VarName = String
 
 data Expr = 
@@ -25,6 +27,13 @@ data Expr =
     | Succ 
     | Num Integer
     deriving (Eq, Ord, Show)
+data Error = 
+     NotAChurchNumeral Expr
+   | InvalidApplication Expr
+
+instance Show Error where
+    show (NotAChurchNumeral e) = "Not a valid church numeral" ++ show(e)
+    show (InvalidApplication e) = "Can't apply things that are not functions" ++ show(e)
 
 {-
 instance Show Expr where
@@ -43,27 +52,26 @@ interp (Num a)          = Num a
 interp l@(App Succ e)   = l
 interp (App e1 e2)      = 
     case interp e1 of
-        (Lambda var' e')  -> let e2' = interp e2 in interp (subst e' var' e2')
-        (App a b)         -> let e2' = interp e2 in App (App a b) e2'
-        (Var a)           -> let e2' = interp e2 in App (Var a) e2'
+        (Lambda var' e')  -> let !e2' = interp e2 in interp (subst e' var' e2')
+        (App a b)         -> let !e2' = interp e2 in App (App a b) e2'
+        (Var a)           -> let !e2' = interp e2 in App (Var a) e2'
 
 -- we need to apply these apps for nested statements as well because
 -- otherwise it only subs in succ and num zero to the outermost
 takeMeToChurch :: Expr -> Expr
 takeMeToChurch l@(Lambda x e) = interp (App (App l Succ) (Num 0))
 
-evalChurch :: Expr -> Either String Integer
-evalChurch (Lambda x e) = Left $ error " of sorts "
+evalChurch :: Expr -> Either Error Integer
 evalChurch (Num n) = Right $ n 
 evalChurch (App Succ e1) = (+1) <$> (evalChurch e1)
-evalChurch e             = Left $ "not a valid church numeral " ++ show(e)
+evalChurch e             = Left $ (NotAChurchNumeral e)
 
 fullChurch :: Expr -> Integer
 fullChurch (Lambda x (Var y)) | x == y = 1
 fullChurch e = 
     case evalChurch (takeMeToChurch e) of
         Right i -> i
-        Left e -> error e
+        Left er -> error $ show(er)
 
 subst :: Expr -> VarName -> Expr -> Expr
 subst (Var orig) var sub     = if orig == var then sub else (Var orig)
