@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 import Text.Parsec.String
 import Text.Parsec.Char
 import Text.Parsec.Token
@@ -15,8 +17,6 @@ import System.Environment
 import System.Exit
 import System.IO
 import System.Random
-
-{-# LANGUAGE BangPatterns #-}
 
 type VarName = String
 
@@ -46,7 +46,7 @@ instance Show Expr where
 
 interp :: Expr -> Expr 
 interp (Var var)        = Var var
-interp (Lambda var e)   = Lambda var (interp e)
+interp (Lambda var e)   = Lambda var e
 interp (Succ)           = Succ 
 interp (Num a)          = Num a
 interp l@(App Succ e)   = l
