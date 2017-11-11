@@ -1,0 +1,7 @@
+lambda (s : int -> int) (z : int). s z
+
+lambda s : int -> int. (lambda z : int. (s z))
+
+let x : t = e1 in e2
+
+let x = (e1 : t) in e2

@@ -20,13 +20,52 @@ import System.Random
 
 type VarName = String
 
+--VarT and Var && LambdaT and Lambda should be consolidated okthxbye jk lol
 data Expr = 
-      Var VarName
+      VarT VarName Type
+    | Var VarName
     | App Expr Expr
+    | LambdaT VarName Type  Expr
     | Lambda VarName Expr
-    | Succ 
+    | Cond Expr Expr Expr
+    | TypeDec Expr Type
     | Num Integer
+    | LTrue
+    | LFalse
+    | LTuple Expr Expr
+    | Unop Expr
+    | Binop Expr Expr
     deriving (Eq, Ord)
+
+data Unop = 
+      Neg 
+    | Not
+    | Fst
+    | Snd
+
+data Binop = 
+      Plus 
+    | Times
+    | Div
+    | Minus
+    | And
+    | Or
+    | Equal
+    | Lt
+    | Gt
+    | Lte
+    | Gte
+
+
+ 
+data Type =
+      Int
+    | Boolean
+    | Arrow Type Type
+    | Tuple Type Type 
+    deriving (Eq, Show, Ord)
+
+
 data Error = 
      NotAChurchNumeral Expr
    | InvalidApplication Expr
@@ -39,38 +78,15 @@ instance Show Expr where
     show (Var v) = v
     show (App x y) = "(" ++ show(x) ++ " " ++ show(y) ++ ")"
     show (Lambda var e) = "(lambda "++ var ++ ". " ++ show(e) ++ ")"
-    show (Succ)         = "Succ"
-    show (Num i)        = "Num "++show(i)
 
 interp :: Expr -> Expr 
 interp (Var var)        = Var var
 interp (Lambda var e)   = Lambda var e
-interp (Succ)           = Succ 
-interp (Num a)          = Num a
-interp l@(App Succ e)   = 
-    case interp e of
-        (Num i) -> (Num (i+1))
-        x       -> error $ "Succ applied to not a number " ++ (show x)
 interp (App e1 e2)      = 
     case interp e1 of
         (Lambda var' e')  -> let !e2' = interp e2 in interp (subst e' var' e2')
         (App a b)         -> let !e2' = interp e2 in App (App a b) e2'
         (Var a)           -> let !e2' = interp e2 in App (Var a) e2'
-
-takeMeToChurch :: Expr -> Expr
-takeMeToChurch l@(Lambda x e) = interp (App (App l Succ) (Num 0))
-
-evalChurch :: Expr -> Either Error Integer
-evalChurch (Num n) = Right $ n 
-evalChurch (App Succ e1) = (+1) <$> (evalChurch e1)
-evalChurch e             = Left $ (NotAChurchNumeral e)
-
-fullChurch :: Expr -> Integer
-fullChurch (Lambda x (Var y)) | x == y = 1
-fullChurch e = 
-    case evalChurch (takeMeToChurch e) of
-        Right i -> i
-        Left er -> error $ show(er)
 
 subst :: Expr -> VarName -> Expr -> Expr
 subst (Var orig) var sub     = if orig == var then sub else (Var orig)
@@ -79,19 +95,7 @@ subst (Lambda v e) var sub   =
     case v == var of
         True -> (Lambda v e)
         False -> (Lambda v (subst e var sub))
-subst Succ _ _               = Succ
 subst e v s                  = error $"recieved wrong arguments" ++ show(e) ++v ++show(s)
-
-bounded :: Set VarName -> Expr -> Bool
-bounded vars (Var name) = Data.Set.member name vars
-bounded vars (App e1 e2) = (bounded vars e1) && (bounded vars e2)
-bounded vars (Lambda arg e) = 
-    let 
-        vars' = Data.Set.insert arg vars 
-    in
-        bounded vars' e
-
-unbounded expr = not (bounded Data.Set.empty expr) 
 
 isAlphaNum' a = isAlphaNum a || a == '\''
 
@@ -191,9 +195,6 @@ testInterp s = case parse lambdaExpr "" s of
     (Right v) -> (interp v); 
     (Left e) -> error (show e)
 
-testNumerals :: String -> Integer
-testNumerals s = fullChurch (testInterp s)
-
 main :: IO ()
 main = do
     args <- getArgs
@@ -209,9 +210,10 @@ main = do
                    (Right v) -> v 
                    (Left e) -> error (show e)
     let output = interp ast
+{-
     if cflag && (unbounded ast) then 
         error "Unbound variables"
     else if nflag then do
         putStrLn (show (fullChurch output))
-    else do
-        putStrLn (show (output))
+    else do-}
+    putStrLn (show (output))

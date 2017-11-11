@@ -209,9 +209,10 @@ main = do
                    (Right v) -> v 
                    (Left e) -> error (show e)
     let output = interp ast
+     {-
     if cflag && (unbounded ast) then 
         error "Unbound variables"
     else if nflag then do
         putStrLn (show (fullChurch output))
-    else do
-        putStrLn (show (output))
+    else-} do
+    putStrLn (show (output))
