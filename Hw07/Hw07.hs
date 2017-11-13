@@ -161,6 +161,19 @@ args = try (do {
     return (Lambda arg nextArg)
     }
 
+arg = do
+    arg <- varName
+    spaces
+    char ':'
+    spaces
+    aType <- argType
+
+argType :: Parser Type
+argType = try (do {
+    string "int"
+
+
+
 var :: Parser Expr
 var = do {
     name <- varName;
