@@ -55,8 +55,6 @@ data Binop =
     | Gt
     | Lte
     | Gte
-
-
  
 data Type =
       Int
@@ -64,7 +62,6 @@ data Type =
     | Arrow Type Type
     | Tuple Type Type 
     deriving (Eq, Show, Ord)
-
 
 data Error = 
      NotAChurchNumeral Expr
