@@ -25,7 +25,7 @@ data Expr =
       VarT VarName Type
     | Var VarName
     | App Expr Expr
-    | LambdaT VarName Type  Expr
+    | LambdaT VarName Type Expr
     | Lambda VarName Expr
     | Cond Expr Expr Expr
     | TypeDec Expr Type
@@ -75,6 +75,7 @@ instance Show Expr where
     show (Var v) = v
     show (App x y) = "(" ++ show(x) ++ " " ++ show(y) ++ ")"
     show (Lambda var e) = "(lambda "++ var ++ ". " ++ show(e) ++ ")"
+    show (LambdaT var t e) = "(lambda "++ var ++ " : " ++ show(t) ++ ". " ++ show(e) ++ ")"
 
 interp :: Expr -> Expr 
 interp (Var var)        = Var var
@@ -161,16 +162,52 @@ args = try (do {
     return (Lambda arg nextArg)
     }
 
-arg = do
-    arg <- varName
-    spaces
-    char ':'
-    spaces
-    aType <- argType
+--lambdaArg :: Parser Expr
+--lambdaArg = 
+--    try (do{
+--        lam <- arg;
+--        return lam;}) <|>
+--    do {
+--       let ar =(char '(') *> arg <* (do {spaces; char ')';});
+--       char '.';} <|>
+--    error "mismatched parens"
+
+arg = try (do {
+    arg <- varName;
+    spaces;
+    char ':';
+    spaces;
+    aType <- argType;
+    spaces;
+    char '.';
+    body <- app;
+    return (LambdaT arg aType body);}) <|>
+    do {
+    arg <- varName;
+    spaces;
+    char ':';
+    spaces;
+    aType <- argType;
+    spaces;
+    body <- app;
+    return (LambdaT arg aType body);
+    }
 
 argType :: Parser Type
 argType = try (do {
-    string "int"
+    string "int";
+    spaces;
+    string "->";
+    spaces;
+    recArgs <- argType;
+    return (Arrow Int recArgs) }) <|>
+    do {
+    string "int";
+    spaces;
+    return Int
+    }
+
+
 
 
 
