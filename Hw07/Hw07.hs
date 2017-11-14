@@ -137,14 +137,16 @@ expr :: Parser Expr
 expr =
     try lambda <|>
     var
-
+{-
 lambda :: Parser Expr
 lambda = do
     spaces    
     string "lambda"
     notFollowedBy alphaNum'
     args
+-}
 
+{-
 args :: Parser Expr
 args = try (do {
     spaces;
@@ -161,6 +163,9 @@ args = try (do {
     nextArg <- args;
     return (Lambda arg nextArg)
     }
+
+
+
 
 --lambdaArg :: Parser Expr
 --lambdaArg = 
@@ -192,24 +197,68 @@ arg = try (do {
     body <- app;
     return (LambdaT arg aType body);
     }
+-}
 
+lambda = do
+    spaces
+    string "lambda"
+    notFollowedBy alphaNum'
+    spaces;
+    lam <- args
+    return lam
+
+args = try (do {
+    partialLam <- arg;
+    char '.';
+    body <- app;
+    return (partialLam body)}) <|>
+    do
+    partialLam <- arg
+    recLambda <- args
+    return (partialLam recLambda)
+
+arg = try (do {
+    char '(';
+    partialLam <- nameType;
+    char ')';
+    spaces;
+    return (partialLam);}) <|>
+    do
+    partialLam <- nameType
+    spaces;
+    return partialLam
+
+nameType = do
+    arg <- varName
+    spaces;
+    char ':';
+    spaces;
+    aType <- argType;
+    spaces;
+    return (LambdaT arg aType)
+
+-- Need to add tuples
 argType :: Parser Type
 argType = try (do {
-    string "int";
+    word <- many1 letter;
+    let {aType = getType word};
     spaces;
     string "->";
     spaces;
-    recArgs <- argType;
-    return (Arrow Int recArgs) }) <|>
+    recType <- argType;
+    return (Arrow aType recType) }) <|> 
     do {
-    string "int";
+    word <- many1 letter;
+    let {aType = getType word};
     spaces;
-    return Int
+    return aType
     }
 
-
-
-
+getType :: String -> Type
+getType s =
+    if s == "int" then Int
+    else if s == "bool" then Boolean
+    else error ("Not a valid type: " ++ s)
 
 var :: Parser Expr
 var = do {
