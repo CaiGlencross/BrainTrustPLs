@@ -1,7 +1,25 @@
 lambda (s : int -> int) (z : int). s z
-
 lambda s : int -> int. (lambda z : int. (s z))
-
 let x : t = e1 in e2
-
 let x = (e1 : t) in e2
+if false then 1 else 0
+if (0 == 0) and false then 0 else 1
+if true then 1 else 0
+1
+snd (50,100)
+let x = 4 in let y : int = 7 in x + y
+(12 : int)
+let rec fact : int -> int = lambda n:int. if n == 0 then 1 else n * fact (n - 1) in fact 5
+let rec f : bool -> bool = lambda x:bool. x in if f true then 15 else 0
+if (true,true) == (true,false) then 0 else 17
+(fst (lambda x:int. x, (lambda y:(bool,bool). y, lambda (z:int->int). z))) 2
+(lambda x:int. x) 10 * 20
+(lambda x:int. x) (10 * 20)
+5 * 2 / 3
+(lambda x:(int,int->bool). fst x) (30,lambda x:int. false)
+let x = 0 in let y = 32 in x + y
+94 / (1 + 1)
+11 * 4 + 3
+- (-5)
+fst (50,100)
+(lambda x:(int,int). fst x) (75,0)

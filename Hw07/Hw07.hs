@@ -114,7 +114,7 @@ leadSpaces s = try (spaces >> (reservedOp s))
 -- this is currently not used
 notFollowedByStrs [] = do
     notFollowedBy (char '$')
-notFollowedByStrs(x:xs) = do 
+notFollowedByStrs (x:xs) = do 
     notFollowedBy (reserved x)
     notFollowedByStrs xs
 
@@ -127,6 +127,7 @@ appOp = try (do
     notFollowedBy $ reserved "then"
     notFollowedBy $ reserved "in"
     notFollowedBy $ reserved "else"
+    notFollowedByStrs ["and"]
     lookAhead (try (many1 anyChar))
     )
 
@@ -225,7 +226,7 @@ typeDec = do
     s <- opExpr
     spaces
     colon
-    t <- typeExpr
+    t <- typeStatement
     return $ TypeDec s t
 
 -- Type parsers
