@@ -65,8 +65,9 @@ languageDef =
              Token.identStart      = letter
            , Token.identLetter     = alphaNum'
            , Token.reservedNames   = reservedNames'
-           , Token.reservedOpNames = ["+", "-", "*", "/", "and", "or", "==", " "
-                                     , "<", "=", "not", "fst", "snd", "$", ":", ","]
+           , Token.reservedOpNames = ["+", "-", "*", "/", "and", "or", "==", 
+                                      " ", "<", "=", "not", "fst", "snd", 
+                                      "$", ":", ","]
            }
 
 lexer = Token.makeTokenParser languageDef
@@ -106,13 +107,11 @@ colon      = Token.colon      lexer -- parses a colon
 dot        = Token.dot        lexer -- parses a dot
 natural    = Token.natural    lexer -- parses a positive whole number
 
-opExpr :: Parser Expr
-opExpr = buildExpressionParser operators expression
-
 -- Parses spaces and then a reserved operator
 -- Occurs when there is an application, since we do not parse the spaces
 leadSpaces s = try (spaces >> (reservedOp s))
 
+-- this is currently not used
 notFollowedByStrs [] = do
     notFollowedBy (char '$')
 notFollowedByStrs(x:xs) = do 
@@ -131,34 +130,38 @@ appOp = try (do
     lookAhead (try (many1 anyChar))
     )
 
-operators =  [ [Prefix (reservedOp "-"   >> return (ExprUnOp Neg      ))         ,
-                Prefix (reservedOp "not" >> return (ExprUnOp Not      ))         ,
-                Prefix (reservedOp "fst" >> return (ExprUnOp Fst      ))         ,
-                Prefix (reservedOp "snd" >> return (ExprUnOp Snd      ))         ,
-                Infix  (appOp            >> return (App               )) AssocLeft]
-             , [Infix  (leadSpaces "*"   >> return (ExprBinOp Times   )) AssocLeft,
-                Infix  (leadSpaces "/"   >> return (ExprBinOp Div     )) AssocLeft]
-             , [Infix  (leadSpaces "+"   >> return (ExprBinOp Plus    )) AssocLeft,
-                Infix  (leadSpaces "-"   >> return (ExprBinOp Minus   )) AssocLeft]
-             , [Infix  (leadSpaces "=="  >> return (ExprBinOp Equal   )) AssocLeft,
-                Infix  (leadSpaces "!="  >> return (ExprBinOp NotEqual)) AssocLeft,
-                Infix  (leadSpaces "<"   >> return (ExprBinOp Lt      )) AssocLeft,
-                Infix  (leadSpaces ">"   >> return (ExprBinOp Gt      )) AssocLeft,
-                Infix  (leadSpaces "<="  >> return (ExprBinOp Lte     )) AssocLeft,
-                Infix  (leadSpaces ">="  >> return (ExprBinOp Gte     )) AssocLeft]
-             , [Infix  (leadSpaces "and" >> return (ExprBinOp And     )) AssocLeft]
-             , [Infix  (leadSpaces "or"  >> return (ExprBinOp Or      )) AssocLeft]
-             ]
+opExpr :: Parser Expr
+opExpr = buildExpressionParser operators expression
+
+operators = 
+    [  [Prefix (reservedOp "-"   >> return (ExprUnOp Neg      ))         ,
+        Prefix (reservedOp "not" >> return (ExprUnOp Not      ))         ,
+        Prefix (reservedOp "fst" >> return (ExprUnOp Fst      ))         ,
+        Prefix (reservedOp "snd" >> return (ExprUnOp Snd      ))         ,
+        Infix  (appOp            >> return (App               )) AssocLeft]
+     , [Infix  (leadSpaces "*"   >> return (ExprBinOp Times   )) AssocLeft,
+        Infix  (leadSpaces "/"   >> return (ExprBinOp Div     )) AssocLeft]
+     , [Infix  (leadSpaces "+"   >> return (ExprBinOp Plus    )) AssocLeft,
+        Infix  (leadSpaces "-"   >> return (ExprBinOp Minus   )) AssocLeft]
+     , [Infix  (leadSpaces "=="  >> return (ExprBinOp Equal   )) AssocLeft,
+        Infix  (leadSpaces "!="  >> return (ExprBinOp NotEqual)) AssocLeft,
+        Infix  (leadSpaces "<"   >> return (ExprBinOp Lt      )) AssocLeft,
+        Infix  (leadSpaces ">"   >> return (ExprBinOp Gt      )) AssocLeft,
+        Infix  (leadSpaces "<="  >> return (ExprBinOp Lte     )) AssocLeft,
+        Infix  (leadSpaces ">="  >> return (ExprBinOp Gte     )) AssocLeft]
+     , [Infix  (leadSpaces "and" >> return (ExprBinOp And     )) AssocLeft]
+     , [Infix  (leadSpaces "or"  >> return (ExprBinOp Or      )) AssocLeft]
+     ]
 
 expression = 
         ifStmt 
     <|> letStmt
     <|> lambdaExpr
-    <|> bTerm
-    <|> aTerm
+    <|> try bTerm
+    <|> try aTerm
     <|> try tupleTerm
     <|> liftM Var idTrail
-    <|> parensTrail typeDecExpr
+    <|> try (parensTrail typeDecExpr)
     <|> try (parensTrail opExpr)
 
 lambdaExpr = do
@@ -219,7 +222,7 @@ typeDecExpr =
     <|> typeDec
 
 typeDec = do
-    s <- opExpr -- temp solution, needs to be aribtrary
+    s <- opExpr
     spaces
     colon
     t <- typeExpr
