@@ -1,49 +1,36 @@
-{-# LANGUAGE BangPatterns #-}
-
-import Text.Parsec.String
-import Text.Parsec.Char
-import Text.Parsec.Token
-import Text.Parsec.Combinator
-import Text.Parsec
-import Text.ParserCombinators.Parsec.Error
-
-import Data.Char 
-import Data.Map
-import Data.Set
-
-import Control.Monad
-
-import System.Environment
-import System.Exit
 import System.IO
-import System.Random
+import Control.Monad
+import Data.Char
+
+import Text.Parsec.Number
+import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec.Expr
+import Text.ParserCombinators.Parsec.Language
+import qualified Text.ParserCombinators.Parsec.Token as Token
 
 type VarName = String
 
---VarT and Var && LambdaT and Lambda should be consolidated okthxbye jk lol
 data Expr = 
-      VarT VarName Type
-    | Var VarName
+      Var VarName
     | App Expr Expr
-    | LambdaT VarName Type Expr
-    | Lambda VarName Expr
-    | Cond Expr Expr Expr
+    | Lambda VarName Type Expr
+    | If Expr Expr Expr
     | TypeDec Expr Type
     | Num Integer
-    | LTrue
-    | LFalse
-    | LTuple Expr Expr
-    | Unop Expr
-    | Binop Expr Expr
-    deriving (Eq, Ord)
+    | Bool Bool
+    | Tuple Expr Expr
+    | ExprUnOp UnOp Expr
+    | ExprBinOp BinOp Expr Expr
+    deriving (Eq, Ord, Show)
 
-data Unop = 
+data UnOp = 
       Neg 
     | Not
     | Fst
     | Snd
+    deriving (Eq, Ord, Show)
 
-data Binop = 
+data BinOp = 
       Plus 
     | Times
     | Div
@@ -51,265 +38,219 @@ data Binop =
     | And
     | Or
     | Equal
+    | NotEqual
     | Lt
     | Gt
     | Lte
     | Gte
+    deriving (Eq, Ord, Show)
  
 data Type =
       Int
     | Boolean
     | Arrow Type Type
-    | Tuple Type Type 
-    deriving (Eq, Show, Ord)
+    | TupleType Type Type 
+    deriving (Eq, Ord, Show)
 
-data Error = 
-     NotAChurchNumeral Expr
-   | InvalidApplication Expr
+keywords = ["lambda", "if", "let" , "rec", "in", "then", 
+            "else",  "not", "and", "or",
+            "fst", "snd"]
+            
+bools = ["true", "false"]
 
-instance Show Error where
-    show (NotAChurchNumeral e) = "Not a valid church numeral" ++ show(e)
-    show (InvalidApplication e) = "Can't apply things that are not functions" ++ show(e)
+reservedNames' = keywords ++ bools
 
-instance Show Expr where
-    show (Var v) = v
-    show (App x y) = "(" ++ show(x) ++ " " ++ show(y) ++ ")"
-    show (Lambda var e) = "(lambda "++ var ++ ". " ++ show(e) ++ ")"
-    show (LambdaT var t e) = "(lambda "++ var ++ " : " ++ show(t) ++ ". " ++ show(e) ++ ")"
+languageDef =
+  emptyDef {
+             Token.identStart      = letter
+           , Token.identLetter     = alphaNum'
+           , Token.reservedNames   = reservedNames'
+           , Token.reservedOpNames = ["+", "-", "*", "/", "and", "or", "==", " "
+                                     , "<", "=", "not", "fst", "snd", "$", ":", ","]
+           }
 
-interp :: Expr -> Expr 
-interp (Var var)        = Var var
-interp (Lambda var e)   = Lambda var e
-interp (App e1 e2)      = 
-    case interp e1 of
-        (Lambda var' e')  -> let !e2' = interp e2 in interp (subst e' var' e2')
-        (App a b)         -> let !e2' = interp e2 in App (App a b) e2'
-        (Var a)           -> let !e2' = interp e2 in App (Var a) e2'
-
-subst :: Expr -> VarName -> Expr -> Expr
-subst (Var orig) var sub     = if orig == var then sub else (Var orig)
-subst (App e1 e2) var sub    = App (subst e1 var sub) (subst e2 var sub)
-subst (Lambda v e) var sub   = 
-    case v == var of
-        True -> (Lambda v e)
-        False -> (Lambda v (subst e var sub))
-subst e v s                  = error $"recieved wrong arguments" ++ show(e) ++v ++show(s)
+lexer = Token.makeTokenParser languageDef
 
 isAlphaNum' a = isAlphaNum a || a == '\''
+alphaNum' = try alphaNum <|> satisfy isAlphaNum'
 
-alphaNum' :: Parser String
-alphaNum' = do
-    result <- many1 $ satisfy isAlphaNum'
-    return result
-
-lambdaExpr = do 
-    results <- try lets <|> app
-    notFollowedBy (char ')')
-    return results
-
-lets = do
-    spaces
-    string "let"
-    notFollowedBy alphaNum'
-    spaces
-    name <- varName 
-    spaces
-    char '='
-    spaces
-    value <- app
-    spaces
-    string "in"
-    spaces
-    body <- lambdaExpr
-    return (App (Lambda name body) value)
-
-app = expr `chainl1` appOp 
-
-appOp = try (do {
-    skipMany1 space;
-    notFollowedBy (string "in");
-    notFollowedBy eof;
-    lookAhead (try (many1 anyChar));
-    return (App);
-    })
-
-expr :: Parser Expr
-expr =
-    try lambda <|>
-    var
-{-
-lambda :: Parser Expr
-lambda = do
-    spaces    
-    string "lambda"
-    notFollowedBy alphaNum'
-    args
--}
-
-{-
-args :: Parser Expr
-args = try (do {
-    spaces;
-    arg <- varName;
-    spaces;
-    char '.';
-    spaces;
-    body <- app;
-    return (Lambda arg body)}) <|>
-    do {
-    spaces;
-    arg <- varName;
-    spaces;
-    nextArg <- args;
-    return (Lambda arg nextArg)
-    }
-
-
-
-
---lambdaArg :: Parser Expr
---lambdaArg = 
---    try (do{
---        lam <- arg;
---        return lam;}) <|>
---    do {
---       let ar =(char '(') *> arg <* (do {spaces; char ')';});
---       char '.';} <|>
---    error "mismatched parens"
-
-arg = try (do {
-    arg <- varName;
-    spaces;
-    char ':';
-    spaces;
-    aType <- argType;
-    spaces;
-    char '.';
-    body <- app;
-    return (LambdaT arg aType body);}) <|>
-    do {
-    arg <- varName;
-    spaces;
-    char ':';
-    spaces;
-    aType <- argType;
-    spaces;
-    body <- app;
-    return (LambdaT arg aType body);
-    }
--}
-
-lambda = do
-    spaces
-    string "lambda"
-    notFollowedBy alphaNum'
-    spaces;
-    lam <- args
-    return lam
-
-args = try (do {
-    partialLam <- arg;
-    char '.';
-    body <- app;
-    return (partialLam body)}) <|>
-    do
-    partialLam <- arg
-    recLambda <- args
-    return (partialLam recLambda)
-
-arg = try (do {
-    char '(';
-    partialLam <- nameType;
-    char ')';
-    spaces;
-    return (partialLam);}) <|>
-    do
-    partialLam <- nameType
-    spaces;
-    return partialLam
-
-nameType = do
-    arg <- varName
-    spaces;
-    char ':';
-    spaces;
-    aType <- argType;
-    spaces;
-    return (LambdaT arg aType)
-
--- Need to add tuples
-argType :: Parser Type
-argType = try (do {
-    word <- many1 letter;
-    let {aType = getType word};
-    spaces;
-    string "->";
-    spaces;
-    recType <- argType;
-    return (Arrow aType recType) }) <|> 
-    do {
-    word <- many1 letter;
-    let {aType = getType word};
-    spaces;
-    return aType
-    }
-
-getType :: String -> Type
-getType s =
-    if s == "int" then Int
-    else if s == "bool" then Boolean
-    else error ("Not a valid type: " ++ s)
-
-var :: Parser Expr
-var = do {
-    name <- varName;
-    return (Var name)} <|>
-    between (char '(') (do {spaces; char ')'}) app <|>
-    error "mismatched parens"
-
-keywords = ["lambda", "let", "in"]
-
-varName :: Parser VarName
-varName = do
+-- these implemented to not skip trailing whitespace
+idTrail :: Parser VarName
+idTrail = do
     spaces
     fc <- firstChar
     rest <- many nonFirstChar
-    if fc:rest `elem` keywords then error "Keyword used as variable name"
+    if fc:rest `elem` keywords then 
+        error $ "Keyword used as variable name: " ++ (fc:rest)
     else do
     return (fc:rest)
   where
     firstChar = satisfy (\a -> isLetter a)
     nonFirstChar = satisfy isAlphaNum' 
 
-test :: Parser a -> String -> a
-test p s = case parse p "" s of 
-    (Right v) -> v
-    (Left e) -> error (show e)
-
-testInterp :: String -> Expr
-testInterp s = case parse lambdaExpr "" s of 
-    (Right v) -> (interp v); 
-    (Left e) -> error (show e)
-
-main :: IO ()
-main = do
-    args <- getArgs
-    let cflag = any (\a -> a=="-c" || a=="-cn") args 
-    let nflag = any (\a -> a=="-n" || a=="-cn") args
-    let fileArg = Prelude.filter (\a -> a/="-c" && a/="-n" && a/="-cn") args
-    
-    if length fileArg > 1 then error "Usage error: too many args"
-    else do
-    input <- if head fileArg == "-" || length fileArg == 0 then getContents
-             else readFile (head fileArg)
-    let ast = case parse lambdaExpr "" input of 
-                   (Right v) -> v 
-                   (Left e) -> error (show e)
-    let output = interp ast
 {-
-    if cflag && (unbounded ast) then 
-        error "Unbound variables"
-    else if nflag then do
-        putStrLn (show (fullChurch output))
-    else do-}
-    putStrLn (show (output))
+parensTrail :: Parser a
+parensTrail = between (char '(') (char ')') -- parses surrounding parenthesis
+-}
+
+parensTrail = between (char '(') (char ')')
+
+-- all of these skip trailing whitespace
+identifier = Token.identifier lexer -- parses an identifier
+parens     = Token.parens     lexer -- parses surrounding parenthesis
+reserved   = Token.reserved   lexer -- parses a reserved name
+reservedOp = Token.reservedOp lexer -- parses an operator
+integer    = Token.integer    lexer -- parses an integer
+whiteSpace = Token.whiteSpace lexer -- parses whitespace
+colon      = Token.colon      lexer -- parses a colon
+dot        = Token.dot        lexer -- parses a dot
+natural    = Token.natural    lexer -- parses a positive whole number
+
+opExpr :: Parser Expr
+opExpr = buildExpressionParser operators expression
+
+-- Parses spaces and then a reserved operator
+-- Occurs when there is an application, since we do not parse the spaces
+leadSpaces s = try (spaces >> (reservedOp s))
+
+notFollowedByStrs [] = do
+    notFollowedBy (char '$')
+notFollowedByStrs(x:xs) = do 
+    notFollowedBy (reserved x)
+    notFollowedByStrs xs
+
+appOp = try (do 
+    reservedOp " "
+    spaces
+    notFollowedBy (eof)
+    notFollowedBy (reservedOp ":") 
+    notFollowedBy (reservedOp ",")
+    notFollowedBy $ reserved "then"
+    notFollowedBy $ reserved "in"
+    notFollowedBy $ reserved "else"
+    lookAhead (try (many1 anyChar))
+    )
+
+operators =  [ [Prefix (reservedOp "-"   >> return (ExprUnOp Neg      ))         ,
+                Prefix (reservedOp "not" >> return (ExprUnOp Not      ))         ,
+                Prefix (reservedOp "fst" >> return (ExprUnOp Fst      ))         ,
+                Prefix (reservedOp "snd" >> return (ExprUnOp Snd      ))         ,
+                Infix  (appOp            >> return (App               )) AssocLeft]
+             , [Infix  (leadSpaces "*"   >> return (ExprBinOp Times   )) AssocLeft,
+                Infix  (leadSpaces "/"   >> return (ExprBinOp Div     )) AssocLeft]
+             , [Infix  (leadSpaces "+"   >> return (ExprBinOp Plus    )) AssocLeft,
+                Infix  (leadSpaces "-"   >> return (ExprBinOp Minus   )) AssocLeft]
+             , [Infix  (leadSpaces "=="  >> return (ExprBinOp Equal   )) AssocLeft,
+                Infix  (leadSpaces "!="  >> return (ExprBinOp NotEqual)) AssocLeft,
+                Infix  (leadSpaces "<"   >> return (ExprBinOp Lt      )) AssocLeft,
+                Infix  (leadSpaces ">"   >> return (ExprBinOp Gt      )) AssocLeft,
+                Infix  (leadSpaces "<="  >> return (ExprBinOp Lte     )) AssocLeft,
+                Infix  (leadSpaces ">="  >> return (ExprBinOp Gte     )) AssocLeft]
+             , [Infix  (leadSpaces "and" >> return (ExprBinOp And     )) AssocLeft]
+             , [Infix  (leadSpaces "or"  >> return (ExprBinOp Or      )) AssocLeft]
+             ]
+
+expression = 
+        ifStmt 
+    <|> letStmt
+    <|> lambdaExpr
+    <|> bTerm
+    <|> aTerm
+    <|> try tupleTerm
+    <|> liftM Var idTrail
+    <|> parensTrail typeDecExpr
+    <|> try (parensTrail opExpr)
+
+lambdaExpr = do
+    reserved "lambda"
+    args <- sepEndBy1 typeDecExpr whiteSpace
+    dot
+    body <- opExpr
+    return $ chainArgs args body
+
+chainArgs [] body = body
+chainArgs ((TypeDec (Var name) t):xs) body = 
+    Lambda name t $ chainArgs xs body
+chainArgs _ _ = error "unexpected input"
+
+-- temp solution, we need types!
+letStmt = do
+    reserved "let"
+    var <- identifier
+    reservedOp "="
+    e1 <- opExpr
+    spaces
+    reserved "in"
+    e2 <- opExpr
+    spaces
+    return $ App (Lambda var Boolean e2) e1
+
+bTerm = 
+        (string "true"  >> return (Bool True ))
+    <|> (string "false" >> return (Bool False))
+
+aTerm = do
+    n <- nat
+    return $ Num n
+
+tupleTerm = parensTrail tTerm
+
+tTerm = do
+    e1 <- opExpr
+    spaces
+    reservedOp ","
+    e2 <- opExpr
+    return $ Tuple e1 e2
+
+ifStmt :: Parser Expr
+ifStmt = do
+    reserved "if"
+    cond  <- opExpr
+    spaces
+    reserved "then"
+    stmt1 <- opExpr
+    spaces
+    reserved "else"
+    stmt2 <- opExpr
+    return $ If cond stmt1 stmt2
+
+typeDecExpr = 
+        parensTrail typeDec
+    <|> typeDec
+
+typeDec = do
+    s <- opExpr -- temp solution, needs to be aribtrary
+    spaces
+    colon
+    t <- typeExpr
+    return $ TypeDec s t
+
+-- Type parsers
+typeExpr =
+        parensTrail typeStatement    
+    <|> (reserved "int" >> return (Int))
+    <|> (reserved "bool" >> return (Boolean))
+
+typeStatement :: Parser Type
+typeStatement = buildExpressionParser typeOp typeExpr
+
+typeOp =    [[Infix (reservedOp "->" >> return (Arrow))      AssocRight],
+             [Infix (reservedOp ","  >> return (TupleType))  AssocLeft]]
+
+parseType :: Parser Type -> String -> Type
+parseType p str =
+  case parse p "" str of
+    Left e  -> error $ show e
+    Right r -> r
+
+parseExpr :: Parser Expr -> String -> Expr
+parseExpr p str =
+  case parse p "" str of
+    Left e  -> error $ show e
+    Right r -> r
+
+parseString :: String -> Expr
+parseString str =
+  case parse expression "" str of
+    Left e  -> error $ show e
+    Right r -> r
