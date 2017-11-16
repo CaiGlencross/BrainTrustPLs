@@ -52,13 +52,14 @@ data Type =
     | TupleType Type Type 
     deriving (Eq, Ord, Show)
 
-keywords = ["lambda", "if", "let" , "rec", "in", "then", 
-            "else",  "not", "and", "or",
-            "fst", "snd"]
+appKeywords = ["and", "then", "in", "else", "or"]
+
+keywords = ["lambda", "if", "let" , "rec",
+            "not", "fst", "snd"]
             
 bools = ["true", "false"]
 
-reservedNames' = keywords ++ bools
+reservedNames' = keywords ++ bools ++ appKeywords
 
 languageDef =
   emptyDef {
@@ -72,30 +73,6 @@ languageDef =
 
 lexer = Token.makeTokenParser languageDef
 
-isAlphaNum' a = isAlphaNum a || a == '\''
-alphaNum' = try alphaNum <|> satisfy isAlphaNum'
-
--- these implemented to not skip trailing whitespace
-idTrail :: Parser VarName
-idTrail = do
-    spaces
-    fc <- firstChar
-    rest <- many nonFirstChar
-    if fc:rest `elem` keywords then 
-        error $ "Keyword used as variable name: " ++ (fc:rest)
-    else do
-    return (fc:rest)
-  where
-    firstChar = satisfy (\a -> isLetter a)
-    nonFirstChar = satisfy isAlphaNum' 
-
-{-
-parensTrail :: Parser a
-parensTrail = between (char '(') (char ')') -- parses surrounding parenthesis
--}
-
-parensTrail = between (char '(') (char ')')
-
 -- all of these skip trailing whitespace
 identifier = Token.identifier lexer -- parses an identifier
 parens     = Token.parens     lexer -- parses surrounding parenthesis
@@ -106,30 +83,6 @@ whiteSpace = Token.whiteSpace lexer -- parses whitespace
 colon      = Token.colon      lexer -- parses a colon
 dot        = Token.dot        lexer -- parses a dot
 natural    = Token.natural    lexer -- parses a positive whole number
-
--- Parses spaces and then a reserved operator
--- Occurs when there is an application, since we do not parse the spaces
-leadSpaces s = try (spaces >> (reservedOp s))
-
--- this is currently not used
-notFollowedByStrs [] = do
-    notFollowedBy (char '$')
-notFollowedByStrs (x:xs) = do 
-    notFollowedBy (reserved x)
-    notFollowedByStrs xs
-
-appOp = try (do 
-    reservedOp " "
-    spaces
-    notFollowedBy (eof)
-    notFollowedBy (reservedOp ":") 
-    notFollowedBy (reservedOp ",")
-    notFollowedBy $ reserved "then"
-    notFollowedBy $ reserved "in"
-    notFollowedBy $ reserved "else"
-    notFollowedByStrs ["and"]
-    lookAhead (try (many1 anyChar))
-    )
 
 opExpr :: Parser Expr
 opExpr = buildExpressionParser operators expression
@@ -153,6 +106,50 @@ operators =
      , [Infix  (leadSpaces "and" >> return (ExprBinOp And     )) AssocLeft]
      , [Infix  (leadSpaces "or"  >> return (ExprBinOp Or      )) AssocLeft]
      ]
+
+-- Parses spaces and then a reserved operator
+-- Occurs when there is an application, since we do not parse the spaces
+leadSpaces s = try (spaces >> (reservedOp s))
+
+appOp = try (do 
+    reservedOp " "
+    spaces
+    notFollowedBy (eof)
+    notFollowedBy (reservedOp ":") 
+    notFollowedBy (reservedOp ",")
+    notFollowedByStrs appKeywords
+    lookAhead (try (many1 anyChar))
+    )
+
+notFollowedByStrs [] = do
+    notFollowedBy (char '$')
+notFollowedByStrs (x:xs) = do 
+    notFollowedBy (reserved x)
+    notFollowedByStrs xs
+
+isAlphaNum' a = isAlphaNum a || a == '\''
+alphaNum' = try alphaNum <|> satisfy isAlphaNum'
+
+-- these implemented to not skip trailing whitespace
+idTrail :: Parser VarName
+idTrail = do
+    spaces
+    fc <- firstChar
+    rest <- many nonFirstChar
+    if fc:rest `elem` reservedNames' then 
+        error $ "Keyword used as variable name: " ++ (fc:rest)
+    else do
+    return (fc:rest)
+  where
+    firstChar = satisfy (\a -> isLetter a)
+    nonFirstChar = satisfy isAlphaNum' 
+
+{-
+parensTrail :: Parser a
+parensTrail = between (char '(') (char ')') -- parses surrounding parenthesis
+-}
+
+parensTrail = between (char '(') (char ')')
 
 expression = 
         ifStmt 
@@ -178,7 +175,11 @@ chainArgs ((TypeDec (Var name) t):xs) body =
 chainArgs _ _ = error "unexpected input"
 
 -- temp solution, we need types!
-letStmt = do
+-- should have altneratives for two types
+-- of types let statements
+letStmt = letStmtUntyped
+
+letStmtUntyped = do
     reserved "let"
     var <- identifier
     reservedOp "="
