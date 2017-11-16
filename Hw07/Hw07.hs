@@ -7,6 +7,8 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
+import Data.Map (Map)
+import qualified Data.Map as Map
 
 type VarName = String
 
@@ -14,6 +16,7 @@ data Expr =
       Var VarName
     | App Expr Expr
     | Lambda VarName Type Expr
+    | Let VarName Expr Expr
     | If Expr Expr Expr
     | TypeDec Expr Type
     | Num Integer
@@ -51,6 +54,16 @@ data Type =
     | Arrow Type Type
     | TupleType Type Type 
     deriving (Eq, Ord, Show)
+
+data Error =
+      TypeMismatch Expr
+    | UnboundVariable Expr
+    deriving (Eq)
+
+
+instance Show Error where
+     show (TypeMismatch e) = "types do not match up in expression: " ++ show(e)
+     show (UnboundVariable e) = "there is an unbound variable in expression: " ++ show(e)
 
 appKeywords = ["and", "then", "in", "else", "or"]
 
@@ -174,12 +187,7 @@ chainArgs ((TypeDec (Var name) t):xs) body =
     Lambda name t $ chainArgs xs body
 chainArgs _ _ = error "unexpected input"
 
--- temp solution, we need types!
--- should have altneratives for two types
--- of types let statements
-letStmt = letStmtUntyped
-
-letStmtUntyped = do
+letStmt = do
     reserved "let"
     var <- identifier
     reservedOp "="
@@ -188,7 +196,7 @@ letStmtUntyped = do
     reserved "in"
     e2 <- opExpr
     spaces
-    return $ App (Lambda var Boolean e2) e1
+    return $ Let var e1 e2
 
 bTerm = 
         (string "true"  >> return (Bool True ))
@@ -259,3 +267,31 @@ parseString str =
   case parse expression "" str of
     Left e  -> error $ show e
     Right r -> r
+
+
+
+typeOf' :: Map VarName Type -> Expr -> Either Error Type
+typeOf' g e@(Var v) = case (Map.lookup v g) of 
+                                              Nothing -> Left $ UnboundVariable e 
+                                              Just x -> Right x
+typeOf' g (Num i) = Right Int
+typeOf' g (Bool b) = Right Boolean
+typeOf' g (Tuple e1 e2) = case (typeOf' g e1) of
+                                Left e -> Left e
+                                Right t1 -> case (typeOf' g e2) of
+                                                    Left e -> Left e
+                                                    Right t2 -> Right $ TupleType t1 t2
+typeOf' g ex@(ExprUnOp u e) 
+                       | (u == Neg) && ((typeOf' g e)==(Right Int)) = Right Int
+                       | (u == Not) && ((typeOf' g e)==(Right Boolean)) = Right Boolean
+                       | (u == Fst) = case typeOf' g e of
+                                     Right (TupleType t1 t2) -> Right t1
+                                     _               -> Left $ TypeMismatch ex
+                       | (u == Snd) = case typeOf' g e of
+                                     Right (TupleType t1 t2) -> Right t2
+                                     _               -> Left $ TypeMismatch ex
+typeOf' g ex@(ExprBinOp u e1 e2) 
+                        | u `elem` [Plus, Times, Div, Minus, Lt, Gt, Lte, Gte] 
+                        && ((typeOf' g e1) == Right Int) && ((typeOf' g e2) == Right Int) = Right Int
+typeOf' _ _ = undefined
+
