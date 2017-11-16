@@ -268,30 +268,32 @@ parseString str =
     Left e  -> error $ show e
     Right r -> r
 
-
+intOps = [Plus, Times, Div, Minus, Lt, Gt, Lte, Gte]
 
 typeOf' :: Map VarName Type -> Expr -> Either Error Type
-typeOf' g e@(Var v) = case (Map.lookup v g) of 
-                                              Nothing -> Left $ UnboundVariable e 
-                                              Just x -> Right x
+typeOf' g e@(Var v) = 
+    case (Map.lookup v g) of 
+        Nothing -> Left $ UnboundVariable e 
+        Just x -> Right x
 typeOf' g (Num i) = Right Int
 typeOf' g (Bool b) = Right Boolean
-typeOf' g (Tuple e1 e2) = case (typeOf' g e1) of
-                                Left e -> Left e
-                                Right t1 -> case (typeOf' g e2) of
-                                                    Left e -> Left e
-                                                    Right t2 -> Right $ TupleType t1 t2
+typeOf' g (Tuple e1 e2) = 
+    case (typeOf' g e1) of
+        Left e -> Left e
+        Right t1 -> case (typeOf' g e2) of
+            Left e -> Left e
+            Right t2 -> Right $ TupleType t1 t2
 typeOf' g ex@(ExprUnOp u e) 
-                       | (u == Neg) && ((typeOf' g e)==(Right Int)) = Right Int
-                       | (u == Not) && ((typeOf' g e)==(Right Boolean)) = Right Boolean
-                       | (u == Fst) = case typeOf' g e of
-                                     Right (TupleType t1 t2) -> Right t1
-                                     _               -> Left $ TypeMismatch ex
-                       | (u == Snd) = case typeOf' g e of
-                                     Right (TupleType t1 t2) -> Right t2
-                                     _               -> Left $ TypeMismatch ex
+ | (u == Neg) && ((typeOf' g e)==(Right Int)) = Right Int
+ | (u == Not) && ((typeOf' g e)==(Right Boolean)) = Right Boolean
+ | (u == Fst) = case typeOf' g e of
+                    Right (TupleType t1 t2) -> Right t1
+                    _                       -> Left $ TypeMismatch ex
+ | (u == Snd) = case typeOf' g e of
+                    Right (TupleType t1 t2) -> Right t2
+                    _                       -> Left $ TypeMismatch ex
 typeOf' g ex@(ExprBinOp u e1 e2) 
-                        | u `elem` [Plus, Times, Div, Minus, Lt, Gt, Lte, Gte] 
-                        && ((typeOf' g e1) == Right Int) && ((typeOf' g e2) == Right Int) = Right Int
+ | u `elem` intOps && ((typeOf' g e1) == Right Int) 
+                   && ((typeOf' g e2) == Right Int) = Right Int
 typeOf' _ _ = undefined
 
