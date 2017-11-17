@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 import System.IO
 import Control.Monad
 import Data.Char
@@ -64,6 +66,12 @@ data Error =
 instance Show Error where
      show (TypeMismatch e) = "types do not match up in expression: " ++ show(e)
      show (UnboundVariable e) = "there is an unbound variable in expression: " ++ show(e)
+
+
+------------------------------------------------------------------------
+-- Parser
+------------------------------------------------------------------------
+
 
 appKeywords = ["and", "then", "in", "else", "or"]
 
@@ -268,32 +276,149 @@ parseString str =
     Left e  -> error $ show e
     Right r -> r
 
-intOps = [Plus, Times, Div, Minus, Lt, Gt, Lte, Gte]
 
-typeOf' :: Map VarName Type -> Expr -> Either Error Type
-typeOf' g e@(Var v) = 
+------------------------------------------------------------------------
+-- Type Checker
+------------------------------------------------------------------------
+
+
+intOps = [Plus, Times, Div, Minus]
+compOps = [Lt, Gt, Lte, Gte]
+
+typeOf :: Map VarName Type -> Expr -> Either Error Type
+typeOf g e@(Var v) = 
     case (Map.lookup v g) of 
         Nothing -> Left $ UnboundVariable e 
         Just x -> Right x
-typeOf' g (Num i) = Right Int
-typeOf' g (Bool b) = Right Boolean
-typeOf' g (Tuple e1 e2) = 
-    case (typeOf' g e1) of
+typeOf g (Num i) = Right Int
+typeOf g (Bool b) = Right Boolean
+typeOf g (Tuple e1 e2) = 
+    case (typeOf g e1) of
         Left e -> Left e
-        Right t1 -> case (typeOf' g e2) of
+        Right t1 -> case (typeOf g e2) of
             Left e -> Left e
             Right t2 -> Right $ TupleType t1 t2
-typeOf' g ex@(ExprUnOp u e) 
- | (u == Neg) && ((typeOf' g e)==(Right Int)) = Right Int
- | (u == Not) && ((typeOf' g e)==(Right Boolean)) = Right Boolean
- | (u == Fst) = case typeOf' g e of
+typeOf g ex@(ExprUnOp u e) 
+ | (u == Neg) && ((typeOf g e)==(Right Int)) = Right Int
+ | (u == Not) && ((typeOf g e)==(Right Boolean)) = Right Boolean
+ | (u == Fst) = case typeOf g e of
                     Right (TupleType t1 t2) -> Right t1
                     _                       -> Left $ TypeMismatch ex
- | (u == Snd) = case typeOf' g e of
+ | (u == Snd) = case typeOf g e of
                     Right (TupleType t1 t2) -> Right t2
                     _                       -> Left $ TypeMismatch ex
-typeOf' g ex@(ExprBinOp u e1 e2) 
- | u `elem` intOps && ((typeOf' g e1) == Right Int) 
-                   && ((typeOf' g e2) == Right Int) = Right Int
-typeOf' _ _ = undefined
+typeOf g ex@(ExprBinOp op e1 e2) 
+ | op `elem` intOps && ((typeOf g e1) == Right Int) 
+                   && ((typeOf g e2) == Right Int) = Right Int
+ | op `elem` intOps    = Left  $ TypeMismatch ex
+ | op `elem` compOps && ((typeOf g e1) == Right Int) 
+                   && ((typeOf g e2) == Right Int) = Right Boolean
+ | op `elem` compOps    = Left  $ TypeMismatch ex
+ | op `elem` [And, Or] && ((typeOf g e1) == Right Boolean) 
+                   && ((typeOf g e2) == Right Boolean) = Right Boolean
+ | op `elem` [Equal, NotEqual] && ( (typeOf g e1) == (typeOf g e2) ) = Right Boolean
+ | otherwise    =  Left $ TypeMismatch ex
+typeOf g ex@(TypeDec e t) =
+    if (typeOf g e) == (Right t) then Right t else Left $ TypeMismatch ex
+typeOf g ex@(If e1 e2 e3) -- is this first case on line 320 a catch-all for good outcomes?
+ | ( (typeOf g e1) == Right Boolean ) && ((typeOf g e2) == (typeOf g e3) ) = typeOf g e2
+ | otherwise  = Left $ TypeMismatch ex
+typeOf g ex@(App e1 e2) = 
+    let t2 = typeOf g e2
+        t1 = typeOf g e1
+    in   -- pretty sure this case statement catches all we need 
+        case t1 of
+            Right (Arrow t11 t22) -> if (Right t11) == t2 then (Right t22) else Left $ TypeMismatch ex
+            Left e                -> Left e
+typeOf g ex@(Lambda v t1 e) =  -- does this lambda case miss any errors? are they all handled
+    case (typeOf (Map.insert v t1 g) e) of -- in the 'let' statement?
+        Right t2 -> Right (Arrow t1 t2)
+        Left e   -> Left e
+typeOf g ex@(Let v e1 e2) = 
+    case (typeOf g e1) of
+        Right t1 -> typeOf (Map.insert v t1 g) e2
+        Left e   -> Left e
+
+
+------------------------------------------------------------------------
+-- Interpreter
+------------------------------------------------------------------------
+
+
+--interp :: Expr -> Expr 
+--interp (Var var)        = Var var
+--interp (Lambda var t e)   = Lambda var t e
+--interp (App e1 e2)      = 
+--    case interp e1 of
+--        (Lambda var' e')  -> let !e2' = interp e2 in interp (subst e' var' e2')
+--        (App a b)         -> let !e2' = interp e2 in App (App a b) e2'
+--        (Var a)           -> let !e2' = interp e2 in App (Var a) e2'
+
+--subst :: Expr -> VarName -> Expr -> Expr
+--subst (Var orig) var sub     = if orig == var then sub else (Var orig)
+--subst (App e1 e2) var sub    = App (subst e1 var sub) (subst e2 var sub)
+--subst (Lambda v e) var sub   = 
+--    case v == var of
+--        True -> (Lambda v e)
+--        False -> (Lambda v (subst e var sub))
+--subst e v s                  = error $"recieved wrong arguments" ++ show(e) ++v ++show(s)
+
+--------------------------------------------------------------------------
+---- Main
+--------------------------------------------------------------------------
+
+--testInterp :: String -> Expr
+--testInterp s = case parse lambdaExpr "" s of 
+--    (Right v) -> (interp v); 
+--    (Left e) -> error (show e)
+
+--main :: IO ()
+--main = do
+--    args <- getArgs
+--    let cflag = any (\a -> a=="-c" || a=="-cn") args 
+--    let nflag = any (\a -> a=="-n" || a=="-cn") args
+--    let fileArg = Prelude.filter (\a -> a/="-c" && a/="-n" && a/="-cn") args
+    
+--    if length fileArg > 1 then error "Usage error: too many args"
+--    else do
+--    input <- if head fileArg == "-" || length fileArg == 0 then getContents
+--             else readFile (head fileArg)
+--    let ast = case parse lambdaExpr "" input of 
+--                   (Right v) -> v 
+--                   (Left e) -> error (show e)
+--    let output = interp ast
+--{-
+--    if cflag && (unbounded ast) then 
+--        error "Unbound variables"
+--    else if nflag then do
+--        putStrLn (show (fullChurch output))
+--    else do-}
+--    putStrLn (show (output))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
