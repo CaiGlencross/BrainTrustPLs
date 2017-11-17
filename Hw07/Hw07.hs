@@ -82,14 +82,16 @@ bools = ["true", "false"]
 
 reservedNames' = keywords ++ bools ++ appKeywords
 
+reservedOperators = ["+", "-", "*", "/", "and", "or", "==",
+                     " ", "<", "=", "not", "fst", "snd", 
+                     "$", ":", ","]
+
 languageDef =
   emptyDef {
              Token.identStart      = letter
            , Token.identLetter     = alphaNum'
            , Token.reservedNames   = reservedNames'
-           , Token.reservedOpNames = ["+", "-", "*", "/", "and", "or", "==", 
-                                      " ", "<", "=", "not", "fst", "snd", 
-                                      "$", ":", ","]
+           , Token.reservedOpNames = reservedOperators
            }
 
 lexer = Token.makeTokenParser languageDef
@@ -136,9 +138,8 @@ appOp = try (do
     reservedOp " "
     spaces
     notFollowedBy (eof)
-    notFollowedBy (reservedOp ":") 
-    notFollowedBy (reservedOp ",")
     notFollowedByStrs appKeywords
+    notFollowedByStrs reservedOperators
     lookAhead (try (many1 anyChar))
     )
 
@@ -276,6 +277,7 @@ parseString str =
     Left e  -> error $ show e
     Right r -> r
 
+parser = spaces >> opExpr
 
 ------------------------------------------------------------------------
 -- Type Checker
