@@ -60,12 +60,14 @@ data Type =
 data Error =
       TypeMismatch Expr
     | UnboundVariable Expr
+    | FunctionEquivalence Expr
     deriving (Eq)
 
 
 instance Show Error where
      show (TypeMismatch e) = "types do not match up in expression: " ++ show(e)
      show (UnboundVariable e) = "there is an unbound variable in expression: " ++ show(e)
+     show (FunctionEquivalence e) = "cannot use equals/non-equals operator on lambda expressions "++ show(e) 
 
 
 ------------------------------------------------------------------------
@@ -318,7 +320,10 @@ typeOf g ex@(ExprBinOp op e1 e2)
  | op `elem` compOps    = Left  $ TypeMismatch ex
  | op `elem` [And, Or] && ((typeOf g e1) == Right Boolean) 
                    && ((typeOf g e2) == Right Boolean) = Right Boolean
- | op `elem` [Equal, NotEqual] && ( (typeOf g e1) == (typeOf g e2) ) = Right Boolean
+ | op `elem` [Equal, NotEqual] && ( (typeOf g e1) == (typeOf g e2) ) = 
+                                 if (hasArrow (typeOf g e1) || hasArrow (typeOf g e2) ) 
+                                 then Left $ FunctionEquivalence ex
+                                 else Right Boolean
  | otherwise    =  Left $ TypeMismatch ex
 typeOf g ex@(TypeDec e t) =
     if (typeOf g e) == (Right t) then Right t else Left $ TypeMismatch ex
@@ -340,6 +345,13 @@ typeOf g ex@(Let v e1 e2) =
     case (typeOf g e1) of
         Right t1 -> typeOf (Map.insert v t1 g) e2
         Left e   -> Left e
+
+hasArrow :: Either Error Type -> Bool
+hasArrow typ = 
+    case typ of
+        (Right (Arrow _ _))              -> True
+        (Right (TupleType leftT rightT)) -> (hasArrow (Right leftT)) || (hasArrow (Right rightT))
+        _                                -> False
 
 
 ------------------------------------------------------------------------
@@ -363,7 +375,25 @@ typeOf g ex@(Let v e1 e2) =
 --    case v == var of
 --        True -> (Lambda v e)
 --        False -> (Lambda v (subst e var sub))
---subst e v s                  = error $"recieved wrong arguments" ++ show(e) ++v ++show(s)
+--subst e v s                  = error $ "recieved wrong arguments" ++ show(e) ++v ++show(s)
+
+
+--data Expr = 
+--      Var VarName
+--    | App Expr Expr
+--    | Lambda VarName Type Expr
+--    | Let VarName Expr Expr
+--    | If Expr Expr Expr
+--    | TypeDec Expr Type
+--    | Num Integer
+--    | Bool Bool
+--    | Tuple Expr Expr
+--    | ExprUnOp UnOp Expr
+--    | ExprBinOp BinOp Expr Expr
+--    deriving (Eq, Ord, Show)
+
+
+
 
 --------------------------------------------------------------------------
 ---- Main
