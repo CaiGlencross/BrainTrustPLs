@@ -359,9 +359,108 @@ hasArrow typ =
 ------------------------------------------------------------------------
 
 
---interp :: Expr -> Expr 
---interp (Var var)        = Var var
---interp (Lambda var t e)   = Lambda var t e
+interp :: Expr -> Either Error Expr 
+interp e@(Var var)        = Left $ UnboundVariable e
+interp (Lambda var t e)   = Right $ Lambda var t e
+interp (Let var e b)      = case typeOf Map.empty e of
+                             Right t -> interp (App (Lambda var t e) b)
+                             Left e -> Left e
+interp (App e1 e2)        = case interp e1 of 
+                            Right (Lambda v t e)   -> let !e2' = interp e2 in interp (subst e v e2')
+                            Right _                  -> Left $ TypeMismatch e1 --can only apply functions
+                            Left e                   -> Left e
+interp (If cond e1 e2)    = case interp cond of 
+                            Right (Bool True) -> interp e1
+                            Right (Bool False) -> interp e2
+                            Right _           -> Left $ TypeMismatch cond
+                            Left e            -> Left e
+
+interp (TypeDec e t)          = interp e -- are we even still using this??? 
+interp (Num n)                = Right $ Num n    -- Nums should be values I think
+interp (Bool b)               = Right $ Bool b
+interp (Tuple e1 e2)          = Right $ Tuple (e1) (e2) --Need to case / interp e1 and e2
+interp ex@(ExprUnOp Neg e)    = case interp e of 
+                                  Right (Num n) -> Right $ Num (-n) --might be a better way
+                                  _     -> Left $ TypeMismatch ex
+interp ex@(ExprUnOp Not e)    = case interp e of 
+                                  Right (Bool b) -> Right $ Bool (not b)
+                                  _              -> Left $ TypeMismatch ex
+interp ex@(ExprUnOp Fst e)    = case interp e of 
+                                  Right (Tuple e1 e2) -> interp e1 --again maybe dont interp
+                                  _              -> Left $ TypeMismatch ex
+interp ex@(ExprUnOp Snd e)    = case interp e of 
+                                  Right (Tuple e1 e2) -> interp e2 --again maybe dont interp
+                                  _              -> Left $ TypeMismatch ex
+interp ex@(ExprBinOp Plus e1 e2)    = case interp e1 of 
+                                  Right (Num n) ->  case interp e2 of
+                                               Right (Num n') -> Right $ Num (n + n')
+                                               Left e        ->  Left e
+                                               _             -> Left $ TypeMismatch ex
+                                  Left e         -> Left e
+                                  _              -> Left $ TypeMismatch ex
+interp ex@(ExprBinOp Times e1 e2)    = case interp e1 of 
+                                  Right (Num n) ->  case interp e2 of
+                                               Right (Num n') -> Right $ Num (n * n')
+                                               Left e        ->  Left e
+                                               _             -> Left $ TypeMismatch ex
+                                  Left e         -> Left e
+                                  _              -> Left $ TypeMismatch ex
+interp ex@(ExprBinOp Div e1 e2)    = case interp e1 of 
+                                  Right (Num n) ->  case interp e2 of
+                                               Right (Num n') -> Right $ Num (n / n')
+                                               Left e        ->  Left e
+                                               _             -> Left $ TypeMismatch ex
+                                  Left e         -> Left e
+                                  _              -> Left $ TypeMismatch ex
+interp ex@(ExprBinOp Minus e1 e2)    = case interp e1 of 
+                                  Right (Num n) ->  case interp e2 of
+                                               Right (Num n') -> Right $ Num (n - n')
+                                               Left e        ->  Left e
+                                               _             -> Left $ TypeMismatch ex
+                                  Left e         -> Left e
+                                  _              -> Left $ TypeMismatch ex
+interp ex@(ExprBinOp And e1 e2)    = case interp e1 of 
+                                  Right (Bool b) ->  case interp e2 of
+                                               Right (Bool b') -> Right $ Bool (b && b')
+                                               Left e        ->  Left e
+                                               _             -> Left $ TypeMismatch ex
+                                  Left e         -> Left e
+                                  _              -> Left $ TypeMismatch ex
+interp ex@(ExprBinOp Or e1 e2)    = case interp e1 of 
+                                  Right (Bool b) ->  case interp e2 of
+                                               Right (Bool b') -> Right $ Bool (b || b')
+                                               Left e        ->  Left e
+                                               _             -> Left $ TypeMismatch ex
+                                  Left e         -> Left e
+                                  _              -> Left $ TypeMismatch ex
+
+interp ex@(ExprBinOp Equal e1 e2)    = if hasArrow (typeOf Map.empty e1) || hasArrow (typeOf Map.empty e2)
+                                        then Left $ TypeMismatch ex
+                                        else case interp e1 of 
+                                            Right v1 -> case interp e2 of 
+                                                Right v2 -> Right $ Bool (v1 == v2)
+                                                _        -> Left $ TypeMismatch ex
+                                            _        -> Left $ TypeMismatch ex
+interp ex@(ExprBinOp NotEqual e1 e2)    = interp (ExprUnOp Not (ExprBinOp Equal e1 e2)) 
+interp ex@(ExprBinOp Gt e1 e2)    = case interp e1 of 
+                                  Right (Num n) ->  case interp e2 of
+                                               Right (Num n') -> Right $ Bool (n > n')
+                                               Left e        ->  Left e
+                                               _             -> Left $ TypeMismatch ex
+                                  Left e         -> Left e
+                                  _              -> Left $ TypeMismatch ex
+interp ex@(ExprBinOp Lte e1 e2)    = interp (ExprUnOp Not (ExprBinOp Gt e1 e2)) 
+interp ex@(ExprBinOp Lt e1 e2)    = case interp e1 of 
+                                  Right (Num n) ->  case interp e2 of
+                                               Right (Num n') -> Right $ Bool (n < n')
+                                               Left e        ->  Left e
+                                               _             -> Left $ TypeMismatch ex
+                                  Left e         -> Left e
+                                  _              -> Left $ TypeMismatch ex
+interp ex@(ExprBinOp Gte e1 e2)    = interp (ExprUnOp Not (ExprBinOp Gt e1 e2)) 
+
+
+
 --interp (App e1 e2)      = 
 --    case interp e1 of
 --        (Lambda var' e')  -> let !e2' = interp e2 in interp (subst e' var' e2')
@@ -377,20 +476,6 @@ hasArrow typ =
 --        False -> (Lambda v (subst e var sub))
 --subst e v s                  = error $ "recieved wrong arguments" ++ show(e) ++v ++show(s)
 
-
---data Expr = 
---      Var VarName
---    | App Expr Expr
---    | Lambda VarName Type Expr
---    | Let VarName Expr Expr
---    | If Expr Expr Expr
---    | TypeDec Expr Type
---    | Num Integer
---    | Bool Bool
---    | Tuple Expr Expr
---    | ExprUnOp UnOp Expr
---    | ExprBinOp BinOp Expr Expr
---    deriving (Eq, Ord, Show)
 
 
 
