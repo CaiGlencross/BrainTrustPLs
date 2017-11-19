@@ -11,6 +11,8 @@ import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 import Data.Map (Map)
 import qualified Data.Map as Map
+import System.Environment
+import System.Exit
 
 type VarName = String
 
@@ -26,14 +28,14 @@ data Expr =
     | Tuple Expr Expr
     | ExprUnOp UnOp Expr
     | ExprBinOp BinOp Expr Expr
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
 
 data UnOp = 
       Neg 
     | Not
     | Fst
     | Snd
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
 
 data BinOp = 
       Plus 
@@ -48,14 +50,14 @@ data BinOp =
     | Gt
     | Lte
     | Gte
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
  
 data Type =
       Int
     | Boolean
     | Arrow Type Type
     | TupleType Type Type 
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
 
 data Error =
       TypeMismatch Expr
@@ -68,6 +70,47 @@ instance Show Error where
      show (TypeMismatch e) = "types do not match up in expression: " ++ show(e)
      show (UnboundVariable e) = "there is an unbound variable in expression: " ++ show(e)
      show (FunctionEquivalence e) = "cannot use equals/non-equals operator on lambda expressions "++ show(e) 
+
+instance Show Type where
+    show Int = "int"
+    show Boolean = "bool"
+    show (Arrow t1 t2) = show(t1) ++ " -> " ++ show(t2)
+    show (TupleType t1 t2) = "(" ++ show(t1) ++ "," ++ show(t2) ++ ")"
+
+instance Show BinOp where
+    show Plus = "+"
+    show Minus = "-"
+    show And   = "&&"
+    show Or    = "||"
+    show Equal = "=="
+    show NotEqual = "!="
+    show Lt       = "<"
+    show Gt       = ">"
+    show Lte     = "<="
+    show Gte     = ">="
+    show Times  = "*"
+    show Div    = "/"
+
+instance Show UnOp where
+    show Neg = "-"
+    show Not = "!"
+    show Fst = "fst "
+    show Snd = "snd "
+
+instance Show Expr where
+    show (Var v) = v
+    show (App x y) = "(" ++ show(x) ++ " " ++ show(y) ++ ")"
+    show (Lambda var t e) = "(lambda "++ var ++ " : " ++ show(t) ++ ". " ++ show(e) ++ ")"
+    show (TypeDec ex t) = "(" ++ show(ex) ++ " : " ++ show(t) ++ ")"
+    show (Let var e1 e2) = "let " ++ var ++ " = " ++ show(e1) ++ " in " ++ show(e2)
+    show (If e1 e2 e3)   = "if " ++ show(e1) ++ " then " ++ show(e2) ++ " else " ++ show(e3)
+    show (ExprUnOp op e) = show(op)++show(e)
+    show (ExprBinOp op e1 e2) = show(e1) ++ " " ++ show(op) ++ " " ++ show(e2)
+    show (Num n) = show(n)
+    show (Bool True) = "true"
+    show (Bool False) = "false"
+    show (Tuple e1 e2) = "("++show(e1)++", "++show(e2)++")"
+
 
 
 ------------------------------------------------------------------------
@@ -366,7 +409,9 @@ interp (Let var e b)      = case typeOf Map.empty e of
                              Right t -> interp (App (Lambda var t e) b)
                              Left e -> Left e
 interp (App e1 e2)        = case interp e1 of 
-                            Right (Lambda v t e)   -> let !e2' = interp e2 in interp (subst e v e2')
+                            Right (Lambda v t e)   -> case interp e2 of
+                                                        Right e2' -> interp (subst e v e2')
+                                                        Left err  -> Left err
                             Right _                  -> Left $ TypeMismatch e1 --can only apply functions
                             Left e                   -> Left e
 interp (If cond e1 e2)    = case interp cond of 
@@ -407,7 +452,7 @@ interp ex@(ExprBinOp Times e1 e2)    = case interp e1 of
                                   _              -> Left $ TypeMismatch ex
 interp ex@(ExprBinOp Div e1 e2)    = case interp e1 of 
                                   Right (Num n) ->  case interp e2 of
-                                               Right (Num n') -> Right $ Num (n / n')
+                                               Right (Num n') -> Right $ Num (n `quot` n')
                                                Left e        ->  Left e
                                                _             -> Left $ TypeMismatch ex
                                   Left e         -> Left e
@@ -467,6 +512,24 @@ interp ex@(ExprBinOp Gte e1 e2)    = interp (ExprUnOp Not (ExprBinOp Gt e1 e2))
 --        (App a b)         -> let !e2' = interp e2 in App (App a b) e2'
 --        (Var a)           -> let !e2' = interp e2 in App (Var a) e2'
 
+subst :: Expr -> VarName -> Expr -> Expr
+
+subst (Var og) v sub    =   if (og == v)
+                            then sub
+                            else (Var og)
+subst (Lambda var t e) v sub = if (var == v)
+                                  then (Lambda var t e)
+                                  else (Lambda var t (subst e v sub))
+subst (App e1 e2) v sub = App (subst e1 v sub) (subst e2 v sub)
+subst l@(Let var e1 e2) v sub = if (var == v)
+                                 then l
+                                 else Let var e1 (subst e2 v sub)
+subst (If e1 e2 e3) v sub = If (subst e1 v sub) (subst e2 v sub) (subst e3 v sub)
+subst (Tuple e1 e2) v sub = Tuple (subst e1 v sub) (subst e2 v sub)
+subst (ExprUnOp op e) v sub = ExprUnOp op (subst e v sub)
+subst (ExprBinOp op e1 e2) v sub = ExprBinOp op (subst e1 v sub) (subst e2 v sub)
+subst a v sub = a --handles nums and bools
+
 --subst :: Expr -> VarName -> Expr -> Expr
 --subst (Var orig) var sub     = if orig == var then sub else (Var orig)
 --subst (App e1 e2) var sub    = App (subst e1 var sub) (subst e2 var sub)
@@ -484,42 +547,32 @@ interp ex@(ExprBinOp Gte e1 e2)    = interp (ExprUnOp Not (ExprBinOp Gt e1 e2))
 ---- Main
 --------------------------------------------------------------------------
 
---testInterp :: String -> Expr
---testInterp s = case parse lambdaExpr "" s of 
---    (Right v) -> (interp v); 
---    (Left e) -> error (show e)
 
---main :: IO ()
---main = do
---    args <- getArgs
---    let cflag = any (\a -> a=="-c" || a=="-cn") args 
---    let nflag = any (\a -> a=="-n" || a=="-cn") args
---    let fileArg = Prelude.filter (\a -> a/="-c" && a/="-n" && a/="-cn") args
-    
---    if length fileArg > 1 then error "Usage error: too many args"
---    else do
---    input <- if head fileArg == "-" || length fileArg == 0 then getContents
---             else readFile (head fileArg)
---    let ast = case parse lambdaExpr "" input of 
---                   (Right v) -> v 
---                   (Left e) -> error (show e)
---    let output = interp ast
---{-
---    if cflag && (unbounded ast) then 
---        error "Unbound variables"
---    else if nflag then do
---        putStrLn (show (fullChurch output))
---    else do-}
---    putStrLn (show (output))
-
-
-
-
-
-
-
-
-
+main :: IO ()
+main = do
+    args <- getArgs
+    let uflag = any (\a -> a=="-u") args
+    let fileArg = Prelude.filter (\a -> a/="-u") args
+   
+    if length fileArg > 1 then error "Usage error: too many args"
+    else do
+    input <- if head fileArg == "-" || length fileArg == 0 then getContents
+             else readFile (head fileArg)
+    let ast = case parse parser "" input of
+                   (Right v) -> v
+                   (Left e) -> error (show e)
+    if not uflag then
+        case typeOf Map.empty ast of
+            Right t -> case interp ast of
+                        Right (Lambda _ _ _) -> putStrLn $ "<function>"
+                        Right e -> putStrLn $ show(e)
+                        Left err -> putStrLn $ show(err)
+            Left e -> error (show e)
+    else do
+        case interp ast of
+                        Right (Lambda _ _ _) -> putStrLn $ "<function>"
+                        Right e -> putStrLn $ show(e)
+                        Left err -> putStrLn $ show(err)
 
 
 
