@@ -406,8 +406,8 @@ interp :: Expr -> Either Error Expr
 interp e@(Var var)        = Left $ UnboundVariable e
 interp (Lambda var t e)   = Right $ Lambda var t e
 interp (Let var e b)      = case typeOf Map.empty e of
-                             Right t -> interp (App (Lambda var t e) b)
-                             Left e -> Left e
+                            Right t -> interp (App (Lambda var t b) e)
+                            Left e -> Left e
 interp (App e1 e2)        = case interp e1 of 
                             Right (Lambda v t e)   -> case interp e2 of
                                                         Right e2' -> interp (subst e v e2')
@@ -560,19 +560,19 @@ main = do
              else readFile (head fileArg)
     let ast = case parse parser "" input of
                    (Right v) -> v
-                   (Left e) -> error (show e)
+                   (Left err) -> error (show err)
     if not uflag then
         case typeOf Map.empty ast of
             Right t -> case interp ast of
                         Right (Lambda _ _ _) -> putStrLn $ "<function>"
                         Right e -> putStrLn $ show(e)
-                        Left err -> putStrLn $ show(err)
+                        Left err -> error (show err)
             Left e -> error (show e)
     else do
         case interp ast of
                         Right (Lambda _ _ _) -> putStrLn $ "<function>"
                         Right e -> putStrLn $ show(e)
-                        Left err -> putStrLn $ show(err)
+                        Left err -> error (show err)
 
 
 

@@ -1,0 +1,1 @@
+(fst (lambda x:int. x, (lambda y:(bool,bool). y, lambda (z:int->int). z))) 2
