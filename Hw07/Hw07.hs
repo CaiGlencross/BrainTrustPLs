@@ -423,7 +423,11 @@ interp (If cond e1 e2)    = case interp cond of
 interp (TypeDec e t)          = interp e -- are we even still using this??? 
 interp (Num n)                = Right $ Num n    -- Nums should be values I think
 interp (Bool b)               = Right $ Bool b
-interp (Tuple e1 e2)          = Right $ Tuple (e1) (e2) --Need to case / interp e1 and e2
+interp (Tuple e1 e2)          = case interp e1 of 
+    Right e1' -> case interp e2 of
+        Right e2' -> Right $ Tuple (e1') (e2') --Need to case / interp e1 and e2
+        Left err -> Left err
+    Left err -> Left err
 interp ex@(ExprUnOp Neg e)    = case interp e of 
                                   Right (Num n) -> Right $ Num (-n) --might be a better way
                                   _     -> Left $ TypeMismatch ex
