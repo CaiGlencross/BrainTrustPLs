@@ -21,6 +21,7 @@ data Expr =
     | App Expr Expr
     | Lambda VarName Type Expr
     | Let VarName Expr Expr
+    | LetT VarName Type Expr Expr
     | If Expr Expr Expr
     | TypeDec Expr Type
     | Num Integer
@@ -240,6 +241,12 @@ chainArgs [] body = body
 chainArgs ((TypeDec (Var name) t):xs) body = 
     Lambda name t $ chainArgs xs body
 chainArgs _ _ = error "unexpected input"
+
+typedLetStmt = do
+    reserved "let"
+    var <- identifier
+    colon
+
 
 letStmt = do
     reserved "let"
