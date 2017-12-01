@@ -177,22 +177,22 @@ evalExp env (ETup es) = VTup (evalExps env es)
     evalExps env (e:es) = evalExp env e : evalExps env es
 
 run :: Env -> Pi -> IO ()
-run env Nil = IO ()
-run env (p1 :|: p2) = Concurrent.parallel (run env p1) (run env p2)
+run env Nil = return ()
+run env (p1 :|: p2) = Concurrent.parallel [(run env p1),(run env p2)]
 run env (New name typ pi) = 
     do
     chan <- newChan
     let env' = Map.insert name (VChan chan) env
-    return $ run env' pi
+    run env' pi
 run env (Out name exp) =
-    case lookup name env of
-        (Right (VChan chan)) -> writeChan chan exp 
-        (Right _) -> type_error "sending to nonchannel"
-        (Left err)   -> error "output to nonexistent channel"
+    case Map.lookup name env of
+        (Just (VChan chan)) -> writeChan chan $ evalExp env exp
+        (Just _)            -> type_error "sending to nonchannel"
+        Nothing             -> error "output to nonexistent channel"
 run env (Inp name pat pi) =
     do
     let chan = case Map.lookup name env of
-               (Just chan) -> chan
+               (Just (VChan chan)) -> chan
                _   -> error "input from nonexistent channel"
     val <- readChan chan 
     let env' = evalPat env pat val
@@ -206,6 +206,12 @@ run env (RepInp name pat pi) =
     val <- readChan chan 
     let env' = evalPat env pat val
     run env' ((RepInp name pat pi) :|: pi)
+run env (Embed func pi) = 
+  do 
+    func env
+    run env pi
+    
+
 
 start :: Pi -> IO ()
 start p = run Map.empty p
