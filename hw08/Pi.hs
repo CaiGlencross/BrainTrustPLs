@@ -55,6 +55,13 @@ data Typ
   | TTup [Typ]          -- tuple type
   deriving Eq
 
+
+--instance Eq Pattern where
+--  (PVar nm1) == (PVar nm2)         = nm1 == nm2
+--  (PTup tupLst1) == (PTup tupLst2) = tupLst1 == tupLst2
+--  _ == _                           = False
+
+
 instance Show Typ where
   show (TChan t) = "Chan " ++ (show t)
   show (TTup []) = "()"
@@ -132,10 +139,33 @@ type_error s = error $ "Run-time Type Error: " ++ s
 
 type Env = Map Name Value
 
+
+
+
+isDisjoint :: [Name] -> Pattern -> [Name]
+isDisjoint s (PVar name)   = if elem name s then s 
+                             else type_error "non-disjoint substitution domains"
+isDisjoint s (PTup [])     = s
+isDisjoint s (PTup ((PVar v):ps) ) = 
+        if elem v s then type_error "non-disjoint substitution domains"
+        else isDisjoint ([v]++ s) (PTup ps) 
+isDisjoint s (PTup ((PTup p):ps) )  = isDisjoint (isDisjoint s (PTup p) ) (PTup ps)
+
+
+
+
+
 -- evalPat env p v
 -- match a value v against a pattern p and extend environment env
 evalPat :: Env -> Pattern -> Value -> Env
-evalPat = undefined
+evalPat env Wild           _               = env
+evalPat env (PVar vname)   val             = Map.insert vname val env
+evalPat env pt@(PTup (p:ps) ) (VTup (v:vs) )  = 
+      case isDisjoint [] pt of
+            _ -> evalPat (evalPat env p v) (PTup ps) (VTup vs)
+evalPat env (PTup [] )      (VTup [] )     = env
+evalPat _ _       _                        = type_error $ "mismatched value; needed list of channels"
+
 
 -- evalExp env e
 -- evaluates e to a value in environment env
