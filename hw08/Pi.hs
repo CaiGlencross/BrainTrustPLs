@@ -116,16 +116,54 @@ printer s = Embed (\_ -> putStrLn s) Nil
 type Gamma = Map Name Typ
 
 typeExp :: Gamma -> Exp -> Either String Typ
-typeExp = undefined
+typeExp g (EVar name) = case Map.lookup name g of
+                        (Just t) -> Right t
+                        (Nothing) -> Left $ "unbound variable " ++ name
+
+typeExp g (ETup [])     = Right $ TTup []
+typeExp g (ETup (x:xs)) = case typeExp g x of
+                          (Right t) -> case typeExp g (ETup xs) of
+                                       (Right (TTup ts)) -> Right $ TTup (t:ts)
+                                       (Left s)   -> Left s
+                          (Left s)   -> Left s
 
 typePat :: Gamma -> Pattern -> Typ -> Either String Gamma
-typePat = undefined
+typePat g (PVar name) (TChan typ) = Right g
+typePat g (PTup []) (TTup []) = Right g
+typePat g (PTup []) _ = Left "tuple length mismatch: ptup ended"
+typePat g _ (TTup []) = Left "tuple length mismatch: ttup ended"
+typePat g (PTup (p:ps)) (TTup (t:ts)) = case typePat g p t of
+    (Right g') -> typePat g' (PTup ps) (TTup ts)
+    (Left e) -> Left e
 
 checkPi :: Gamma -> Pi -> Either String ()
-checkPi = undefined
+checkPi g Nil = Right ()
+checkPi g (p1 :|: p2) = case checkPi g p1 of 
+    Right _ -> checkPi g p2
+    Left s  -> Left s
+checkPi g (New name t p) = checkPi (Map.insert name t g) p
+checkPi g (Out name e) = case typeExp g e of
+    (Right t) -> case (Map.lookup name g) of 
+                    (Just t') -> if t == t' then Right () else Left "channel output type mismatch"
+                    Nothing -> Left "unbound variable"
+    (Left e)  -> Left e
+checkPi g (Inp name pat p) = case (Map.lookup name g) of 
+    (Just t) -> case typePat g pat t of 
+                    (Right g') -> Right ()
+                    (Left e) -> Left e
+    Nothing -> Left "unbound variable"
+checkPi g (RepInp name pat p) = case (Map.lookup name g) of 
+    (Just t) -> case typePat g pat t of 
+                    (Right g') -> Right ()
+                    (Left e) -> Left e
+    Nothing -> Left "unbound variable"
+checkPi g (Embed func p) = checkPi g p
 
 check :: Pi -> Either String ()
 check p = checkPi Map.empty p
+
+
+
 
 -- Signals a dynamic error
 
