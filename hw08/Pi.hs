@@ -56,12 +56,6 @@ data Typ
   deriving Eq
 
 
---instance Eq Pattern where
---  (PVar nm1) == (PVar nm2)         = nm1 == nm2
---  (PTup tupLst1) == (PTup tupLst2) = tupLst1 == tupLst2
---  _ == _                           = False
-
-
 instance Show Typ where
   show (TChan t) = "Chan " ++ (show t)
   show (TTup []) = "()"
@@ -128,7 +122,8 @@ typeExp g (ETup (x:xs)) = case typeExp g x of
                           (Left s)   -> Left s
 
 typePat :: Gamma -> Pattern -> Typ -> Either String Gamma
-typePat g (PVar name) (TChan typ) = Right g
+typePat g Wild _ = Right g
+typePat g (PVar name) t = Right $ Map.insert name t g
 typePat g (PTup []) (TTup []) = Right g
 typePat g (PTup []) _ = Left "tuple length mismatch: ptup ended"
 typePat g _ (TTup []) = Left "tuple length mismatch: ttup ended"
@@ -144,7 +139,8 @@ checkPi g (p1 :|: p2) = case checkPi g p1 of
 checkPi g (New name t p) = checkPi (Map.insert name t g) p
 checkPi g (Out name e) = case typeExp g e of
     (Right t) -> case (Map.lookup name g) of 
-                    (Just t') -> if t == t' then Right () else Left "channel output type mismatch"
+                    (Just t') -> if t == t' then Right () 
+                                 else Left "channel output type mismatch"
                     Nothing -> Left "unbound variable"
     (Left e)  -> Left e
 checkPi g (Inp name pat p) = case (Map.lookup name g) of 
