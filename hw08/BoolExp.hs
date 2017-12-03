@@ -24,8 +24,32 @@ type BEnv = M.Map Name Bool
 -- returns a process p that when juxtaposed with a compatible environment
 -- sends a message on tchan if the boolean expression evaluates to true
 -- sends a message on fchan if the boolean expression evaluates to false
+genName :: Int -> Name
+genName n = "chan" ++ (show n)
+
 compileBExp :: Name -> Name -> BoolExp -> Pi
-compileBExp tchan fchan bexp = undefined
+compileBExp tchan fchan bExp = compileBExp' 0 tchan fchan bExp 
+
+compileBExp' :: Int -> Name -> Name -> BoolExp -> Pi
+compileBExp' n tchan fchan (BVal v) = if (v)
+                                    then (Out tchan (unitE))
+                                    else (Out fchan (unitE))
+
+compileBExp' n tchan fchan (Not b)  = compileBExp' n fchan tchan b
+
+compileBExp' n tchan fchan (a :&&: b) = New (genName n) unitT 
+                                  ( (compileBExp' (n+1) (genName n) fchan a) :|:
+                                    (compileBExp' (n+1) (genName n) fchan b) :|:
+                                      (Inp (genName n) unitP 
+                                      (Inp (genName n) unitP 
+                                      (Out tchan unitE))))
+
+compileBExp' n tchan fchan (a :||: b) = compileBExp' n tchan fchan (Not (Not a :&&: Not b))
+
+--set up the compileBoolEnv to handle this tomorrow
+compileBExp' n tchan fchan (BVar name) = undefined
+
+
 
 
 -- TASK!
