@@ -27,6 +27,17 @@ type BEnv = M.Map Name Bool
 genName :: Int -> Name
 genName n = "chan" ++ (show n)
 
+countAppearances :: Name -> Pi -> Int
+countAppearances _ (Nil) = 0
+countAppearances name (a :|: b) = (countAppearances name a) + (countAppearances name b)
+countAppearances name (New _ _ p) = countAppearances name p
+countAppearances name (Inp _ _ p) = countAppearances name p
+countAppearances name (RepInp chanName _ p) = if (name ++ "true") == chanName 
+                                              then 1 + countAppearances name p
+                                              else countAppearances name p
+countAppearances _ _              = 0
+
+
 compileBExp :: Name -> Name -> BoolExp -> Pi
 compileBExp tchan fchan bExp = compileBExp' 0 tchan fchan bExp 
 
@@ -64,11 +75,14 @@ compileBExpEnv'' benv ((name, b):rest) p =
     New (name ++ "true") unitT
     (New (name ++ "false") unitT (compileBExpEnv'' benv rest p))
 
+repOut :: Int -> Name -> Pi
+repOut 0 name = Nil
+repOut n name = Out name unitE :|: repOut (n-1) name
 
 compileBExpEnv' [] p = p
 compileBExpEnv' ((name, b):rest) p =
-    if b then Out (name ++ "true") unitE :|: (compileBExpEnv' rest p)
-    else Out (name ++ "false") unitE :|: (compileBExpEnv' rest p)
+    if b then (repOut (countAppearances name p) (name++"true")) :|: (compileBExpEnv' rest p)
+    else (repOut (countAppearances name p) (name++"false")) :|: (compileBExpEnv' rest p)
 
 startBool :: BEnv -> BoolExp -> IO ()
 startBool benv bexp =
