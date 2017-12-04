@@ -44,20 +44,31 @@ compileBExp' n tchan fchan (a :&&: b) = New (genName n) unitT
                                       (Inp (genName n) unitP 
                                       (Out tchan unitE))))
 
-compileBExp' n tchan fchan (a :||: b) = compileBExp' n tchan fchan (Not (Not a :&&: Not b))
+compileBExp' n tchan fchan (a :||: b) = 
+    compileBExp' n tchan fchan (Not (Not a :&&: Not b))
 
 --set up the compileBoolEnv to handle this tomorrow
-compileBExp' n tchan fchan (BVar name) = undefined
-
-
-
+compileBExp' n tchan fchan (BVar name) = 
+    (RepInp (name ++ "true") unitP (Out tchan unitE)) :|:
+    (RepInp (name ++ "false") unitP (Out fchan unitE))
 
 -- TASK!
 -- compile a boolean variable environment into a process that
 -- communicates with a compiled Boolean expression containing free
 -- variables from the environment
 compileBExpEnv :: BEnv -> Pi -> Pi
-compileBExpEnv benv p = undefined
+compileBExpEnv benv p = compileBExpEnv'' (M.toList benv) (M.toList benv) p
+
+compileBExpEnv'' benv [] p = compileBExpEnv' benv p
+compileBExpEnv'' benv ((name, b):rest) p = 
+    New (name ++ "true") unitT
+    (New (name ++ "false") unitT (compileBExpEnv'' benv rest p))
+
+
+compileBExpEnv' [] p = p
+compileBExpEnv' ((name, b):rest) p =
+    if b then Out (name ++ "true") unitE :|: (compileBExpEnv' rest p)
+    else Out (name ++ "false") unitE :|: (compileBExpEnv' rest p)
 
 startBool :: BEnv -> BoolExp -> IO ()
 startBool benv bexp =
